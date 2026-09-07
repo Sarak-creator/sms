@@ -1,0 +1,480 @@
+// MoEYS Cambodian Public High School Management System
+// Data Model & Schema Definition (PostgreSQL / Prisma ORM)
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+// ----------------------------------------------------------------------
+// ENUMS
+// ----------------------------------------------------------------------
+
+enum Role {
+  PRINCIPAL          // នាយកសាលា
+  VICE_PRINCIPAL     // អនុនាយកសាលា
+  ACADEMIC_OFFICER   // ការិយាល័យសិក្សា
+  HOMEROOM_TEACHER   // គ្រូបន្ទុកថ្នាក់
+  SUBJECT_TEACHER    // គ្រូបង្រៀនមុខវិជ្ជា
+  STUDENT            // សិស្ស
+  GUARDIAN           // អាណាព្យាបាល
+  ADMIN              // អ្នកគ្រប់គ្រងប្រព័ន្ធ
+}
+
+enum Gender {
+  MALE   // ប្រុស
+  FEMALE // ស្រី
+}
+
+enum Shift {
+  MORNING    // វេនព្រឹក (07:00 - 11:00)
+  AFTERNOON  // វេនរសៀល (13:00 - 17:00)
+  FULL_DAY   // ពេញមួយថ្ងៃ
+}
+
+enum GradeLevel {
+  GRADE_7   // ថ្នាក់ទី ៧
+  GRADE_8   // ថ្នាក់ទី ៨
+  GRADE_9   // ថ្នាក់ទី ៩
+  GRADE_10  // ថ្នាក់ទី ១០
+  GRADE_11  // ថ្នាក់ទី ១១
+  GRADE_12  // ថ្នាក់ទី ១២
+}
+
+enum Track {
+  GENERAL         // ចំណេះទូទៅ (Grades 7 - 10)
+  SCIENCE         // ថ្នាក់វិទ្យាសាស្ត្រ (Grades 11 & 12)
+  SOCIAL_SCIENCE  // ថ្នាក់វិទ្យាសាស្ត្រសង្គម (Grades 11 & 12)
+}
+
+enum StudentStatus {
+  ACTIVE       // កំពុងសិក្សា
+  SUSPENDED    // ព្យួរការសិក្សា
+  DROPPED_OUT  // បោះបង់ការសិក្សា
+  TRANSFERRED  // ផ្ទេរការសិក្សា
+  GRADUATED    // បានបញ្ចប់ការសិក្សា
+}
+
+enum TeacherStatus {
+  ACTIVE      // កំពុងបំពេញការងារ
+  ON_LEAVE    // សុំច្បាប់
+  TRANSFERRED // ផ្ទេរចេញ
+  RETIRED     // ចូលនិវត្តន៍
+}
+
+enum AttendanceStatus {
+  PRESENT               // វត្តមាន (P)
+  ABSENT_PERMISSION     // អវត្តមានមានច្បាប់ (A/P)
+  ABSENT_NO_PERMISSION  // អវត្តមានឥតច្បាប់ (A/NP)
+  LATE                  // យឺត (L)
+}
+
+enum MoEYSGrade {
+  GRADE_A  // ល្អប្រសើរ (>= 85.00%)
+  GRADE_B  // ល្អណាស់ (80.00% - 84.99%)
+  GRADE_C  // ល្អ (70.00% - 79.99%)
+  GRADE_D  // ល្អបង្គួរ (60.00% - 69.99%)
+  GRADE_E  // មធ្យម (50.00% - 59.99%)
+  GRADE_F  // ខ្សោយ / ធ្លាក់ (< 50.00%)
+}
+
+enum PromotionStatus {
+  PROMOTED      // ឡើងថ្នាក់
+  RETAINED      // ត្រួតថ្នាក់
+  RE_EXAM       // ប្រឡងសង / ត្រួតពិនិត្យ
+  GRADUATED     // បញ្ចប់ការសិក្សា
+  INELIGIBLE    // មិនមានសិទ្ធិឡើងថ្នាក់
+}
+
+// ----------------------------------------------------------------------
+// AUTHENTICATION & USERS
+// ----------------------------------------------------------------------
+
+model User {
+  id           String    @id @default(cuid())
+  username     String    @unique
+  email        String?   @unique
+  passwordHash String
+  role         Role      @default(SUBJECT_TEACHER)
+  isActive     Boolean   @default(true)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  teacher      Teacher?
+  student      Student?
+
+  recordedAttendances   Attendance[]        @relation("AttendanceRecorder")
+  recordedScores        MonthlyScore[]      @relation("ScoreRecorder")
+  recordedSemesterExams SemesterExamScore[] @relation("ExamRecorder")
+
+  @@index([username])
+  @@index([role])
+}
+
+// ----------------------------------------------------------------------
+// TEACHER (មន្ត្រីរាជការ / គ្រូបង្រៀន)
+// ----------------------------------------------------------------------
+
+model Teacher {
+  id              String         @id @default(cuid())
+  userId          String?        @unique
+  user            User?          @relation(fields: [userId], references: [id], onDelete: SetNull)
+  civilServantId  String         @unique // អត្តលេខមន្ត្រីរាជការ (Civil Servant ID)
+  khmerName       String                 // ឈ្មោះជាភាសាខ្មែរ
+  latinName       String                 // ឈ្មោះជាអក្សរឡាតាំង
+  gender          Gender
+  dob             DateTime               // ថ្ងៃខែឆ្នាំកំណើត
+  phoneNumber     String?
+  nationalIdCard  String?        @unique // លេខអត្តសញ្ញាណប័ណ្ណ
+  cadre           String?                // ក្របខណ្ឌ (ឧ. គ្រូមធ្យមសិក្សាទុតិយភូមិ)
+  specialization  String?                // ឯកទេស (ឧ. គណិតវិទ្យា, រូបវិទ្យា)
+  standardQuota   Int            @default(18) // បន្ទុកម៉ោងបង្រៀនគំរូ (16-18 ម៉ោង/សប្តាហ៍)
+  assignedShift   Shift          @default(MORNING)
+  status          TeacherStatus  @default(ACTIVE)
+  hireDate        DateTime?
+  address         String?
+  photoUrl        String?
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  homeroomClasses Class[]        @relation("HomeroomTeacher")
+  subjectAssignments TeacherSubjectAssignment[]
+
+  @@index([civilServantId])
+  @@index([khmerName])
+  @@index([assignedShift])
+}
+
+// ----------------------------------------------------------------------
+// STUDENT (សិស្សានុសិស្ស)
+// ----------------------------------------------------------------------
+
+model Student {
+  id                 String         @id @default(cuid())
+  userId             String?        @unique
+  user               User?          @relation(fields: [userId], references: [id], onDelete: SetNull)
+  studentNationalId  String         @unique // អត្តលេខសិស្សផ្លូវការ (MoEYS National ID)
+  khmerName          String                 // គោត្តនាម-នាម (ភាសាខ្មែរ)
+  latinName          String                 // ឈ្មោះជាអក្សរឡាតាំង
+  gender             Gender
+  dob                DateTime               // ថ្ងៃខែឆ្នាំកំណើត
+  
+  // ទីកន្លែងកំណើត (Place of Birth)
+  pobVillage         String?                // ភូមិកំណើត
+  pobCommune         String?                // ឃុំ/សង្កាត់កំណើត
+  pobDistrict        String?                // ស្រុក/ខណ្ឌកំណើត
+  pobProvince        String                 // រាជធានី/ខេត្តកំណើត
+
+  // ទីលំនៅបច្ចុប្បន្ន (Current Address)
+  currentAddress     String?
+  currentProvince    String?
+
+  // ព័ត៌មានអាណាព្យាបាល (Parent/Guardian)
+  fatherName         String?                // ឈ្មោះឪពុក
+  fatherOccupation   String?                // មុខរបរឪពុក
+  motherName         String?                // ឈ្មោះម្តាយ
+  motherOccupation   String?                // មុខរបរម្តាយ
+  guardianName       String?                // ឈ្មោះអាណាព្យាបាល
+  guardianPhone      String?                // លេខទូរស័ព្ទអាណាព្យាបាល
+  guardianRelation   String?                // ទំនាក់ទំនង
+
+  photoUrl           String?
+  status             StudentStatus  @default(ACTIVE)
+  admissionDate      DateTime       @default(now())
+  createdAt          DateTime       @default(now())
+  updatedAt          DateTime       @updatedAt
+
+  enrollments        StudentEnrollment[]
+  attendances        Attendance[]
+  monthlyScores      MonthlyScore[]
+  semesterExamScores SemesterExamScore[]
+  semesterResults    SemesterResult[]
+  annualResults      AnnualResult[]
+
+  @@index([studentNationalId])
+  @@index([khmerName])
+  @@index([gender])
+  @@index([status])
+}
+
+// ----------------------------------------------------------------------
+// ACADEMIC STRUCTURE (ឆ្នាំសិក្សា ថ្នាក់ និងកាលវិភាគ)
+// ----------------------------------------------------------------------
+
+model AcademicYear {
+  id          String    @id @default(cuid())
+  code        String    @unique // ឧ. "2024-2025"
+  nameKhmer   String            // ឧ. "ឆ្នាំសិក្សា ២០២៤-២០២៥"
+  startDate   DateTime
+  endDate     DateTime
+  isCurrent   Boolean   @default(false)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  classes            Class[]
+  enrollments        StudentEnrollment[]
+  monthlyScores      MonthlyScore[]
+  semesterExamScores SemesterExamScore[]
+  semesterResults    SemesterResult[]
+  annualResults      AnnualResult[]
+
+  @@index([isCurrent])
+}
+
+model Class {
+  id                 String       @id @default(cuid())
+  academicYearId     String
+  academicYear       AcademicYear @relation(fields: [academicYearId], references: [id], onDelete: Cascade)
+  gradeLevel         GradeLevel   // 7, 8, 9, 10, 11, 12
+  track              Track        @default(GENERAL) // GENERAL, SCIENCE, SOCIAL_SCIENCE
+  shift              Shift        @default(MORNING) // MORNING, AFTERNOON
+  sectionName        String       // ឧ. "A", "B", "11-វិទ្យាសាស្ត្រ-១", "12-សង្គម-២"
+  roomNumber         String?      // បន្ទប់លេខ (ឧ. "បន្ទប់ ១០៤")
+  homeroomTeacherId  String?
+  homeroomTeacher    Teacher?     @relation("HomeroomTeacher", fields: [homeroomTeacherId], references: [id], onDelete: SetNull)
+  createdAt          DateTime     @default(now())
+  updatedAt          DateTime     @updatedAt
+
+  enrollments        StudentEnrollment[]
+  teacherAssignments TeacherSubjectAssignment[]
+  attendances        Attendance[]
+  monthlyScores      MonthlyScore[]
+  semesterExamScores SemesterExamScore[]
+  semesterResults    SemesterResult[]
+  annualResults      AnnualResult[]
+
+  @@unique([academicYearId, gradeLevel, sectionName, shift])
+  @@index([academicYearId])
+  @@index([gradeLevel])
+  @@index([track])
+  @@index([shift])
+}
+
+model StudentEnrollment {
+  id             String        @id @default(cuid())
+  studentId      String
+  student        Student       @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  classId        String
+  class          Class         @relation(fields: [classId], references: [id], onDelete: Cascade)
+  academicYearId String
+  academicYear   AcademicYear  @relation(fields: [academicYearId], references: [id], onDelete: Cascade)
+  rollNumber     Int           // លេខរៀងក្នុងបញ្ជី (Roll Number / K1-S1 index)
+  status         StudentStatus @default(ACTIVE)
+  enrollmentDate DateTime      @default(now())
+
+  @@unique([academicYearId, classId, rollNumber])
+  @@unique([academicYearId, studentId])
+  @@index([studentId])
+  @@index([classId])
+  @@index([academicYearId])
+}
+
+// ----------------------------------------------------------------------
+// SUBJECTS & COEFFICIENTS (មុខវិជ្ជា និងមេគុណ MoEYS)
+// ----------------------------------------------------------------------
+
+model Subject {
+  id             String         @id @default(cuid())
+  code           String         @unique // ឧ. "KHM", "MATH", "PHYS", "CHEM", "BIO", "HIST", "GEO", "MOR"
+  nameKhmer      String                 // ឧ. "ភាសាខ្មែរ", "គណិតវិទ្យា", "រូបវិទ្យា"
+  nameEnglish    String                 // ឧ. "Khmer Literature", "Mathematics", "Physics"
+  category       String                 // ឧ. "Core", "Science", "Social", "Activity"
+  displayOrder   Int            @default(0)
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  rules          SubjectRule[]
+  assignments    TeacherSubjectAssignment[]
+  monthlyScores  MonthlyScore[]
+  examScores     SemesterExamScore[]
+
+  @@index([code])
+}
+
+model SubjectRule {
+  id           String     @id @default(cuid())
+  subjectId    String
+  subject      Subject    @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  gradeLevel   GradeLevel
+  track        Track      @default(GENERAL)
+  coefficient  Float      @default(1.0) // មេគុណ (ឧ. គណិត=3, រូប=2, ខ្មែរ=3)
+  maxScore     Float      @default(100.0) // ពិន្ទុអតិបរមា (Base 100)
+  passingScore Float      @default(50.0)  // ពិន្ទុជាប់មូលដ្ឋាន (50.00%)
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  @@unique([subjectId, gradeLevel, track])
+  @@index([gradeLevel, track])
+}
+
+model TeacherSubjectAssignment {
+  id        String   @id @default(cuid())
+  teacherId String
+  teacher   Teacher  @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  classId   String
+  class     Class    @relation(fields: [classId], references: [id], onDelete: Cascade)
+  subjectId String
+  subject   Subject  @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  weeklyHours Int    @default(2) // ចំនួនម៉ោងបង្រៀនក្នុងមួយសប្តាហ៍
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([classId, subjectId])
+  @@index([teacherId])
+  @@index([classId])
+  @@index([subjectId])
+}
+
+// ----------------------------------------------------------------------
+// ATTENDANCE REGISTER (ការកត់ត្រាវត្តមាន)
+// ----------------------------------------------------------------------
+
+model Attendance {
+  id           String           @id @default(cuid())
+  studentId    String
+  student      Student          @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  classId      String
+  class        Class            @relation(fields: [classId], references: [id], onDelete: Cascade)
+  date         DateTime         // ថ្ងៃខែឆ្នាំ
+  shift        Shift            @default(MORNING)
+  status       AttendanceStatus @default(PRESENT)
+  reason       String?          // មូលហេតុ (ឧ. ឈឺ, ធុរៈផ្ទាល់ខ្លួន)
+  recordedById String?
+  recordedBy   User?            @relation("AttendanceRecorder", fields: [recordedById], references: [id], onDelete: SetNull)
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+
+  @@unique([studentId, date, shift])
+  @@index([classId, date])
+  @@index([studentId])
+  @@index([status])
+}
+
+// ----------------------------------------------------------------------
+// GRADING & EVALUATION ENGINE (ពិន្ទុប្រចាំខែ និងលទ្ធផលប្រឡងឆមាស)
+// ----------------------------------------------------------------------
+
+model MonthlyScore {
+  id             String       @id @default(cuid())
+  studentId      String
+  student        Student      @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  classId        String
+  class          Class        @relation(fields: [classId], references: [id], onDelete: Cascade)
+  subjectId      String
+  subject        Subject      @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  academicYearId String
+  academicYear   AcademicYear @relation(fields: [academicYearId], references: [id], onDelete: Cascade)
+  
+  monthIndex     Int          // 1 ដល់ 10 (ខែតុលា ដល់ ខែកក្កដា នៃឆ្នាំសិក្សា)
+  rawScore       Float        // ពិន្ទុជាក់ស្តែង (0 - 100)
+  scaledScore    Float?       // ពិន្ទុក្រោយគុណមេគុណ
+  isExempt       Boolean      @default(false) // លើកលែង (ឧ. កីឡាពេលមានជំងឺ)
+  notes          String?      // កំណត់សម្គាល់
+  
+  recordedById   String?
+  recordedBy     User?        @relation("ScoreRecorder", fields: [recordedById], references: [id], onDelete: SetNull)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@unique([studentId, classId, subjectId, academicYearId, monthIndex])
+  @@index([classId, monthIndex])
+  @@index([studentId, academicYearId])
+  @@index([subjectId])
+}
+
+model SemesterExamScore {
+  id             String       @id @default(cuid())
+  studentId      String
+  student        Student      @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  classId        String
+  class          Class        @relation(fields: [classId], references: [id], onDelete: Cascade)
+  subjectId      String
+  subject        Subject      @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  academicYearId String
+  academicYear   AcademicYear @relation(fields: [academicYearId], references: [id], onDelete: Cascade)
+  
+  semester       Int          // 1 (ឆមាសទី១) ឬ 2 (ឆមាសទី២)
+  examScore      Float        // ពិន្ទុប្រឡងឆមាស (0 - 100)
+  notes          String?
+  
+  recordedById   String?
+  recordedBy     User?        @relation("ExamRecorder", fields: [recordedById], references: [id], onDelete: SetNull)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@unique([studentId, classId, subjectId, academicYearId, semester])
+  @@index([classId, semester])
+  @@index([studentId])
+}
+
+// ----------------------------------------------------------------------
+// PRE-COMPUTED SEMESTER & ANNUAL RESULTS (លទ្ធផលឆមាស និងប្រចាំឆ្នាំផ្លូវការ)
+// ----------------------------------------------------------------------
+
+model SemesterResult {
+  id                  String       @id @default(cuid())
+  studentId           String
+  student             Student      @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  classId             String
+  class               Class        @relation(fields: [classId], references: [id], onDelete: Cascade)
+  academicYearId      String
+  academicYear        AcademicYear @relation(fields: [academicYearId], references: [id], onDelete: Cascade)
+  
+  semester            Int          // 1 ឬ 2
+  monthlyAverageSum   Float        // ផលបូកមធ្យមភាគប្រចាំខែ
+  examTotalScore      Float        // ផលបូកពិន្ទុប្រឡងឆមាស
+  totalWeightedScore  Float        // ផលបូកពិន្ទុសរុបតាមមេគុណ
+  totalCoefficients   Float        // ផលបូកមេគុណសរុប
+  semesterAverage     Float        // មធ្យមភាគឆមាស (Formula: (MonthlyAvg + Exam*2)/3)
+  letterGrade         MoEYSGrade   // និទ្ទេស (A, B, C, D, E, F)
+  rankInClass         Int          // ចំណាត់ថ្នាក់ក្នុងថ្នាក់
+  rankInGrade         Int?         // ចំណាត់ថ្នាក់ប្រចាំកម្រិតថ្នាក់
+  
+  totalAbsencesPerm   Int          @default(0) // អវត្តមានមានច្បាប់សរុប
+  totalAbsencesNoPerm Int          @default(0) // អវត្តមានឥតច្បាប់សរុប
+  conductGrade        String?      @default("ល្អ") // សីលធម៌ (ល្អប្រសើរ, ល្អ, មធ្យម)
+  isHonorRoll         Boolean      @default(false) // ជាប់តារាងកិត្តិយស (Top 5)
+  remarks             String?
+
+  createdAt           DateTime     @default(now())
+  updatedAt           DateTime     @updatedAt
+
+  @@unique([studentId, classId, academicYearId, semester])
+  @@index([classId, semester, rankInClass])
+  @@index([academicYearId, semester])
+}
+
+model AnnualResult {
+  id                  String          @id @default(cuid())
+  studentId           String
+  student             Student         @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  classId             String
+  class               Class           @relation(fields: [classId], references: [id], onDelete: Cascade)
+  academicYearId      String
+  academicYear        AcademicYear    @relation(fields: [academicYearId], references: [id], onDelete: Cascade)
+  
+  semester1Average    Float           // មធ្យមភាគឆមាសទី១
+  semester2Average    Float           // មធ្យមភាគឆមាសទី២
+  annualAverage       Float           // មធ្យមភាគប្រចាំឆ្នាំ ((Sem1 + Sem2) / 2)
+  annualLetterGrade   MoEYSGrade      // និទ្ទេសប្រចាំឆ្នាំ (A ដល់ F)
+  annualRankInClass   Int             // ចំណាត់ថ្នាក់ប្រចាំឆ្នាំក្នុងថ្នាក់
+  annualRankInGrade   Int?            // ចំណាត់ថ្នាក់ប្រចាំកម្រិតថ្នាក់
+  
+  totalYearAbsences   Int             @default(0) // អវត្តមានសរុបពេញមួយឆ្នាំ
+  conductSummary      String?         @default("ល្អ")
+  promotionStatus     PromotionStatus @default(PROMOTED) // ឡើងថ្នាក់ / ត្រួតថ្នាក់
+  isHonorRoll         Boolean         @default(false)    // តារាងកិត្តិយសប្រចាំឆ្នាំ
+  remarks             String?
+
+  createdAt           DateTime        @default(now())
+  updatedAt           DateTime        @updatedAt
+
+  @@unique([studentId, classId, academicYearId])
+  @@index([classId, annualRankInClass])
+  @@index([academicYearId, promotionStatus])
+}
