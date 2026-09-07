@@ -1,6 +1,7 @@
 import { createSupabaseBrowserClient } from './client';
 import { StudentData, TeacherData, UserData, SpecializationData, ChapterData } from '../schoolData';
-import { ClassRoom, SchoolInfo } from '../mockData';
+import { ClassRoom, SchoolInfo, SchoolSettings } from '../mockData';
+import { HolidayData } from '../holidayData';
 
 export async function fetchAllDataFromSupabase() {
   const supabase = createSupabaseBrowserClient();
@@ -21,6 +22,7 @@ export async function fetchAllDataFromSupabase() {
           phone: schools[0].phone,
           email: schools[0].email,
           address: schools[0].address,
+          settings: schools[0].settings || undefined,
         }
       : null;
 
@@ -58,6 +60,10 @@ export async function fetchAllDataFromSupabase() {
           homeroomTeacherName: c.homeroom_teacher_name || '',
           totalStudents: c.total_students || 0,
           femaleStudents: c.female_students || 0,
+          subjectDivisor: c.subject_divisor ? Number(c.subject_divisor) : undefined,
+          semesterDivisor: c.semester_divisor ? Number(c.semester_divisor) : undefined,
+          disabledColumnKeys: Array.isArray(c.disabled_column_keys) ? c.disabled_column_keys : [],
+          examSubjectKeys: Array.isArray(c.exam_subject_keys) ? c.exam_subject_keys : [],
         }))
       : null;
 
@@ -168,6 +174,65 @@ export async function fetchAllDataFromSupabase() {
         }))
       : null;
 
+    // 11. Fetch Holidays & Academic Calendar Events
+    const { data: holidaysData } = await supabase.from('holidays').select('*').order('date_from', { ascending: true });
+    const holidays: HolidayData[] | null = holidaysData
+      ? holidaysData.map((h) => ({
+          id: h.id,
+          titleKhmer: h.title_khmer,
+          titleEnglish: h.title_english || '',
+          dateFrom: h.date_from,
+          dateTo: h.date_to,
+          type: h.type,
+          isDayOff: h.is_day_off ?? true,
+          description: h.description || '',
+          academicYear: h.academic_year || '២០២៤ - ២០២៥',
+        }))
+      : null;
+
+    // 12. Fetch Dedicated System Settings from public.system_settings table
+    try {
+      const { data: systemSettingsData } = await supabase.from('system_settings').select('*').limit(1);
+      if (schoolData && systemSettingsData && systemSettingsData.length > 0) {
+        const sys = systemSettingsData[0];
+        schoolData.settings = {
+          defaultDivisor: sys.default_divisor ? Number(sys.default_divisor) : (schoolData.settings?.defaultDivisor ?? 21),
+          passingThreshold: sys.passing_threshold ? Number(sys.passing_threshold) : (schoolData.settings?.passingThreshold ?? 50),
+          autoCalculateRank: sys.auto_calculate_rank ?? true,
+          autoSaveAlert: sys.auto_save_alert ?? true,
+          academicMonths: Array.isArray(sys.academic_months) && sys.academic_months.length > 0
+            ? sys.academic_months
+            : schoolData.settings?.academicMonths,
+          ...(sys.custom_settings || {}),
+        };
+      }
+    } catch {}
+
+    // 13. Fetch Dedicated Class Settings from public.class_settings table
+    try {
+      const { data: classSettingsData } = await supabase.from('class_settings').select('*');
+      if (classes && classSettingsData && classSettingsData.length > 0) {
+        const csMap = new Map(classSettingsData.map((cs) => [cs.class_id, cs]));
+        classes.forEach((c) => {
+          const cs = csMap.get(c.id);
+          if (cs) {
+            if (cs.subject_divisor !== null && cs.subject_divisor !== undefined) {
+              c.subjectDivisor = Number(cs.subject_divisor);
+            }
+            if (cs.semester_divisor !== null && cs.semester_divisor !== undefined) {
+              c.semesterDivisor = Number(cs.semester_divisor);
+            }
+            if (Array.isArray(cs.disabled_column_keys) && cs.disabled_column_keys.length > 0) {
+              c.disabledColumnKeys = cs.disabled_column_keys;
+            }
+            if (Array.isArray(cs.exam_subject_keys) && cs.exam_subject_keys.length > 0) {
+              c.examSubjectKeys = cs.exam_subject_keys;
+            }
+          }
+        });
+      }
+    } catch {}
+
     return {
       school: schoolData,
       users,
@@ -179,6 +244,7 @@ export async function fetchAllDataFromSupabase() {
       attendance,
       specializations,
       chapters,
+      holidays,
     };
   } catch (error) {
     console.error('Error fetching Supabase data:', error);
@@ -189,6 +255,29 @@ export async function fetchAllDataFromSupabase() {
 // ----------------------------------------------------------------------
 // SYNC MUTATIONS TO SUPABASE
 // ----------------------------------------------------------------------
+
+export async function syncSystemSettingsToSupabase(settings: SchoolSettings) {
+  const supabase = createSupabaseBrowserClient();
+  if (!supabase) return;
+
+  try {
+    await supabase.from('system_settings').upsert([
+      {
+        id: 'default-settings',
+        school_id: 'current-school',
+        default_divisor: settings.defaultDivisor ?? 21,
+        passing_threshold: settings.passingThreshold ?? 50,
+        auto_calculate_rank: settings.autoCalculateRank ?? true,
+        auto_save_alert: settings.autoSaveAlert ?? true,
+        academic_months: settings.academicMonths || [],
+        custom_settings: {},
+        updated_at: new Date().toISOString(),
+      },
+    ]);
+  } catch (err) {
+    console.warn('Sync to system_settings table warning:', err);
+  }
+}
 
 export async function syncSchoolToSupabase(school: SchoolInfo) {
   const supabase = createSupabaseBrowserClient();
@@ -207,9 +296,14 @@ export async function syncSchoolToSupabase(school: SchoolInfo) {
       phone: school.phone,
       email: school.email,
       address: school.address,
+      settings: school.settings || {},
       updated_at: new Date().toISOString(),
     },
   ]);
+
+  if (school.settings) {
+    await syncSystemSettingsToSupabase(school.settings);
+  }
 }
 
 export async function syncUserToSupabase(user: UserData) {
@@ -296,6 +390,33 @@ export async function deleteTeacherFromSupabase(civilServantId: string) {
   await supabase.from('teachers').delete().eq('civil_servant_id', civilServantId);
 }
 
+export async function syncClassSettingsToSupabase(
+  classId: string,
+  subjectDivisor: number,
+  semesterDivisor: number,
+  disabledColumnKeys: string[],
+  examSubjectKeys?: string[]
+) {
+  const supabase = createSupabaseBrowserClient();
+  if (!supabase) return;
+
+  try {
+    await supabase.from('class_settings').upsert([
+      {
+        id: `cfg-${classId}`,
+        class_id: classId,
+        subject_divisor: subjectDivisor,
+        semester_divisor: semesterDivisor,
+        disabled_column_keys: disabledColumnKeys || [],
+        exam_subject_keys: examSubjectKeys || [],
+        updated_at: new Date().toISOString(),
+      },
+    ]);
+  } catch (err) {
+    console.warn('Sync to class_settings table warning:', err);
+  }
+}
+
 export async function syncClassToSupabase(cls: ClassRoom) {
   const supabase = createSupabaseBrowserClient();
   if (!supabase) return;
@@ -312,14 +433,31 @@ export async function syncClassToSupabase(cls: ClassRoom) {
       homeroom_teacher_name: cls.homeroomTeacherName || null,
       total_students: cls.totalStudents || 0,
       female_students: cls.femaleStudents || 0,
+      subject_divisor: cls.subjectDivisor ?? 21,
+      semester_divisor: cls.semesterDivisor ?? 14,
+      disabled_column_keys: cls.disabledColumnKeys || [],
+      exam_subject_keys: cls.examSubjectKeys || [],
       updated_at: new Date().toISOString(),
     },
   ]);
+
+  // Sync to dedicated class_settings table in Supabase
+  await syncClassSettingsToSupabase(
+    cls.id,
+    cls.subjectDivisor ?? 21,
+    cls.semesterDivisor ?? 14,
+    cls.disabledColumnKeys || [],
+    cls.examSubjectKeys || []
+  );
 }
 
 export async function deleteClassFromSupabase(classId: string) {
   const supabase = createSupabaseBrowserClient();
   if (!supabase) return;
+
+  try {
+    await supabase.from('class_settings').delete().eq('class_id', classId);
+  } catch {}
   await supabase.from('classes').delete().eq('id', classId);
 }
 
@@ -441,3 +579,54 @@ export async function wipeAllSupabaseData() {
     return false;
   }
 }
+
+// ----------------------------------------------------------------------
+// HOLIDAYS & CALENDAR SYNC
+// ----------------------------------------------------------------------
+
+export async function syncHolidayToSupabase(holiday: HolidayData) {
+  const supabase = createSupabaseBrowserClient();
+  if (!supabase) return;
+
+  await supabase.from('holidays').upsert([
+    {
+      id: holiday.id,
+      title_khmer: holiday.titleKhmer,
+      title_english: holiday.titleEnglish || null,
+      date_from: holiday.dateFrom,
+      date_to: holiday.dateTo,
+      type: holiday.type,
+      is_day_off: holiday.isDayOff,
+      description: holiday.description || null,
+      academic_year: holiday.academicYear || '២០២៤ - ២០២៥',
+      updated_at: new Date().toISOString(),
+    },
+  ]);
+}
+
+export async function deleteHolidayFromSupabase(holidayId: string) {
+  const supabase = createSupabaseBrowserClient();
+  if (!supabase) return;
+  await supabase.from('holidays').delete().eq('id', holidayId);
+}
+
+export async function seedDefaultHolidaysToSupabase(holidays: HolidayData[]) {
+  const supabase = createSupabaseBrowserClient();
+  if (!supabase) return;
+
+  const records = holidays.map((h) => ({
+    id: h.id,
+    title_khmer: h.titleKhmer,
+    title_english: h.titleEnglish || null,
+    date_from: h.dateFrom,
+    date_to: h.dateTo,
+    type: h.type,
+    is_day_off: h.isDayOff,
+    description: h.description || null,
+    academic_year: h.academicYear || '២០២៤ - ២០២៥',
+    updated_at: new Date().toISOString(),
+  }));
+
+  await supabase.from('holidays').upsert(records);
+}
+

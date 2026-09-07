@@ -21,6 +21,10 @@ import {
   Layers,
   Sparkles,
   ShieldCheck,
+  Calculator,
+  SlidersHorizontal,
+  CheckSquare,
+  Square,
 } from 'lucide-react';
 import Link from 'next/link';
 
@@ -35,6 +39,9 @@ const EMPTY_CLASS_FORM: ClassRoom = {
   homeroomTeacherName: '',
   totalStudents: 30,
   femaleStudents: 15,
+  subjectDivisor: 21,
+  semesterDivisor: 14,
+  disabledColumnKeys: [],
 };
 
 const GRADE_INFO: Record<
@@ -70,6 +77,12 @@ export default function ClassesPage() {
     setSelectedClassId,
     students,
     teachers,
+    allCompetencyColumns,
+    monthlySubjectGroups,
+    disabledColumnsMap,
+    toggleColumnForClass,
+    setDisabledColumnsForClass,
+    updateClassDivisor,
     language,
     t,
   } = useSchool();
@@ -85,6 +98,12 @@ export default function ClassesPage() {
   const [formData, setFormData] = useState<ClassRoom>(EMPTY_CLASS_FORM);
   const [formError, setFormError] = useState('');
 
+  // Quick Subject & Divisor Configuration Modal State
+  const [configTargetClass, setConfigTargetClass] = useState<ClassRoom | null>(null);
+  const [configDivisor, setConfigDivisor] = useState<number>(21);
+  const [configSemesterDivisor, setConfigSemesterDivisor] = useState<number>(14);
+  const [configDisabledCols, setConfigDisabledCols] = useState<string[]>([]);
+
   // Delete Confirmation State
   const [deleteTarget, setDeleteTarget] = useState<ClassRoom | null>(null);
 
@@ -99,6 +118,30 @@ export default function ClassesPage() {
   const isPrimary = (grade: string) => GRADE_INFO[grade]?.isPrimary ?? false;
   const isLowerSec = (grade: string) => GRADE_INFO[grade]?.isLowerSec ?? false;
   const isUpperSec = (grade: string) => GRADE_INFO[grade]?.isUpperSec ?? false;
+
+  // Quick config modal handler
+  const handleOpenConfig = (cls: ClassRoom) => {
+    setConfigTargetClass(cls);
+    setConfigDivisor(cls.subjectDivisor || 21);
+    setConfigSemesterDivisor(cls.semesterDivisor || 14);
+    setConfigDisabledCols(cls.disabledColumnKeys || disabledColumnsMap[cls.id] || []);
+  };
+
+  const handleSaveConfig = () => {
+    if (!configTargetClass) return;
+    updateClass(configTargetClass.id, {
+      subjectDivisor: configDivisor,
+      semesterDivisor: configSemesterDivisor,
+      disabledColumnKeys: configDisabledCols,
+    });
+    setDisabledColumnsForClass(configTargetClass.id, configDisabledCols);
+    showToast(
+      language === 'km'
+        ? `បានរក្សាទុកមុខវិជ្ជា និងតួរចែក (${configDivisor}) សម្រាប់ថ្នាក់ "${configTargetClass.name}" ចូលក្នុង Database រួចរាល់!`
+        : `Subject configuration and divisor (${configDivisor}) saved to database!`
+    );
+    setConfigTargetClass(null);
+  };
 
   // Filter classes according to accessible scope for teachers
   const targetClasses = isTeacher ? accessibleClasses : classes;
@@ -147,6 +190,9 @@ export default function ClassesPage() {
       roomNumber: 'បន្ទប់ ប.១០១',
       homeroomTeacherId: defaultTeacher.civilServantId,
       homeroomTeacherName: defaultTeacher.khmerName,
+      subjectDivisor: 21,
+      semesterDivisor: 14,
+      disabledColumnKeys: [],
     });
     setFormError('');
     setIsModalOpen(true);
@@ -155,7 +201,12 @@ export default function ClassesPage() {
   // Open Edit Modal
   const handleOpenEdit = (c: ClassRoom) => {
     setModalMode('EDIT');
-    setFormData({ ...c });
+    setFormData({
+      ...c,
+      subjectDivisor: c.subjectDivisor || 21,
+      semesterDivisor: c.semesterDivisor || 14,
+      disabledColumnKeys: c.disabledColumnKeys || disabledColumnsMap[c.id] || [],
+    });
     setFormError('');
     setIsModalOpen(true);
   };
@@ -551,10 +602,31 @@ export default function ClassesPage() {
                     );
                   })()}
                 </div>
+
+                {/* Per-class Divisor and Examined Subjects Info */}
+                <div className="flex items-center justify-between text-slate-600 pt-1 border-t border-slate-200/60 text-xs">
+                  <span className="flex items-center gap-1.5 text-indigo-700 font-bold">
+                    <Calculator className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
+                    <span>{language === 'km' ? 'តួរចែកមធ្យមភាគ:' : 'Divisor:'}</span>
+                  </span>
+                  <span className="font-mono font-black text-indigo-800 bg-indigo-50 px-2 py-0.5 rounded border border-indigo-200">
+                    ÷ {cls.subjectDivisor || 21}
+                  </span>
+                </div>
+
+                <div className="flex items-center justify-between text-slate-600 pt-1 border-t border-slate-200/60 text-xs">
+                  <span className="flex items-center gap-1.5 text-slate-700 font-medium">
+                    <SlidersHorizontal className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                    <span>{language === 'km' ? 'មុខវិជ្ជាប្រឡង:' : 'Exam Subjects:'}</span>
+                  </span>
+                  <span className="font-mono font-bold text-slate-800 text-[11px]">
+                    {Math.max(0, (allCompetencyColumns?.length || 21) - (cls.disabledColumnKeys?.length || disabledColumnsMap[cls.id]?.length || 0))}/{allCompetencyColumns?.length || 21} ជំនាញ
+                  </span>
+                </div>
               </div>
 
               {/* Action Buttons */}
-              <div className="pt-2 border-t border-slate-100 flex items-center justify-between gap-2">
+              <div className="pt-2 border-t border-slate-100 flex items-center justify-between gap-1.5 flex-wrap">
                 <button
                   onClick={() => setSelectedClassId(cls.id)}
                   className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
@@ -575,7 +647,15 @@ export default function ClassesPage() {
                   {!isSelected && <ArrowRight className="w-3 h-3" />}
                 </button>
 
-                <div className="flex items-center gap-1.5">
+                <div className="flex items-center gap-1">
+                  <button
+                    onClick={() => handleOpenConfig(cls)}
+                    className="px-2 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-lg text-xs font-bold transition-all cursor-pointer border border-indigo-200 flex items-center gap-1"
+                    title={language === 'km' ? 'កំណត់មុខវិជ្ជាប្រឡង និងតួរចែក' : 'Configure Subjects & Divisor'}
+                  >
+                    <SlidersHorizontal className="w-3.5 h-3.5" />
+                    <span className="hidden sm:inline">{language === 'km' ? 'មុខវិជ្ជា & តួរចែក' : 'Config'}</span>
+                  </button>
                   <button
                     onClick={() => handleOpenEdit(cls)}
                     className="p-1.5 bg-slate-100 hover:bg-indigo-50 hover:text-indigo-700 text-slate-700 rounded-lg text-xs font-bold transition-all cursor-pointer"
@@ -842,6 +922,69 @@ export default function ClassesPage() {
                 </div>
               </div>
 
+              {/* Divisor Configuration */}
+              <div className="p-3.5 bg-indigo-50/70 border border-indigo-200/80 rounded-xl space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-bold text-indigo-950 flex items-center gap-1.5">
+                    <Calculator className="w-4 h-4 text-indigo-600" />
+                    <span>{language === 'km' ? 'តួរចែកមធ្យមភាគប្រចាំខែ (Divisor) *' : 'Monthly Average Divisor *'}</span>
+                  </label>
+                  <span className="text-[11px] font-mono text-indigo-700 font-bold">
+                    ពិន្ទុសរុប ÷ {formData.subjectDivisor || 21}
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="number"
+                    min="1"
+                    max="100"
+                    required
+                    value={formData.subjectDivisor || 21}
+                    onChange={(e) =>
+                      setFormData({ ...formData, subjectDivisor: Math.max(1, parseInt(e.target.value) || 1) })
+                    }
+                    className="w-24 px-3 py-1.5 bg-white border border-indigo-200 rounded-lg font-black font-mono text-center text-indigo-900 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  />
+                  <div className="flex items-center gap-1 flex-wrap">
+                    {[
+                      { val: 21, label: '២១ ជំនាញ (បឋម)' },
+                      { val: 14, label: '១៤ មុខវិជ្ជា' },
+                      { val: 9, label: '៩ មុខវិជ្ជា' },
+                      { val: 7, label: '៧ មុខវិជ្ជា' },
+                    ].map((p) => (
+                      <button
+                        key={p.val}
+                        type="button"
+                        onClick={() => setFormData({ ...formData, subjectDivisor: p.val })}
+                        className={`px-2 py-1 text-[11px] font-bold rounded cursor-pointer transition-colors ${
+                          (formData.subjectDivisor || 21) === p.val
+                            ? 'bg-indigo-600 text-white shadow-xs'
+                            : 'bg-white hover:bg-indigo-100 text-indigo-800 border border-indigo-200'
+                        }`}
+                      >
+                        {p.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="pt-2 border-t border-indigo-200/60 flex items-center justify-between text-xs">
+                  <span className="font-bold text-slate-700 flex items-center gap-1">
+                    <span>{language === 'km' ? 'តួរចែកឆមាស (Semester Divisor):' : 'Semester Divisor:'}</span>
+                  </span>
+                  <input
+                    type="number"
+                    min="1"
+                    max="100"
+                    value={formData.semesterDivisor || 14}
+                    onChange={(e) =>
+                      setFormData({ ...formData, semesterDivisor: Math.max(1, parseInt(e.target.value) || 1) })
+                    }
+                    className="w-16 px-2 py-1 bg-white border border-indigo-200 rounded font-mono font-bold text-center text-xs"
+                  />
+                </div>
+              </div>
+
               {/* Modal Buttons */}
               <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-slate-100">
                 <button
@@ -868,6 +1011,204 @@ export default function ClassesPage() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* ------------------------------------------------------------- */}
+      {/* QUICK SUBJECT & DIVISOR CONFIGURATION MODAL                     */}
+      {/* ------------------------------------------------------------- */}
+      {configTargetClass && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 z-50 animate-in fade-in duration-150">
+          <div className="bg-white rounded-2xl max-w-2xl w-full p-5 sm:p-6 shadow-2xl border border-slate-200 space-y-4 max-h-[92vh] flex flex-col">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100 shrink-0">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center font-bold">
+                  <SlidersHorizontal className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-base text-slate-800">
+                    {language === 'km'
+                      ? `កំណត់មុខវិជ្ជាប្រឡង និងតួរចែក — ${configTargetClass.name}`
+                      : `Exam Subjects & Divisor Settings — ${configTargetClass.name}`}
+                  </h3>
+                  <p className="text-xs text-slate-500">
+                    {language === 'km'
+                      ? 'ទិន្នន័យទាំងអស់នឹងរក្សាទុកក្នុង Database សម្រាប់ថ្នាក់រៀននេះដោយឡែក'
+                      : 'Settings will be saved to Supabase Database specifically for this classroom'}
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setConfigTargetClass(null)}
+                className="w-8 h-8 rounded-lg bg-slate-100 text-slate-500 hover:bg-slate-200 flex items-center justify-center font-bold cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="space-y-4 overflow-y-auto flex-1 pr-1">
+              {/* 1. Divisor Box */}
+              <div className="p-4 bg-indigo-50/80 border border-indigo-200 rounded-xl space-y-3">
+                <div className="flex items-center justify-between flex-wrap gap-2">
+                  <div className="flex items-center gap-2">
+                    <Calculator className="w-5 h-5 text-indigo-600" />
+                    <div>
+                      <div className="text-xs font-bold text-indigo-950">
+                        {language === 'km' ? 'តួរចែកមធ្យមភាគប្រចាំខែ (Monthly Divisor)' : 'Monthly Average Divisor'}
+                      </div>
+                      <div className="text-[11px] text-indigo-700">
+                        {language === 'km'
+                          ? 'ចំនួនសម្រាប់ចែករកមធ្យមភាគ (ពិន្ទុសរុប ÷ តួរចែក)'
+                          : 'Divisor used to calculate monthly grade point average'}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="number"
+                      min="1"
+                      max="100"
+                      value={configDivisor}
+                      onChange={(e) => setConfigDivisor(Math.max(1, parseInt(e.target.value) || 1))}
+                      className="w-20 px-2 py-1.5 text-center font-mono font-black text-sm bg-white border border-indigo-300 rounded-lg text-indigo-950 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    />
+                  </div>
+                </div>
+
+                {/* Preset shortcuts */}
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <span className="text-[11px] text-indigo-800 font-bold mr-1">
+                    {language === 'km' ? 'កម្រិតទូទៅ៖' : 'Presets:'}
+                  </span>
+                  {[
+                    { val: Math.max(1, (allCompetencyColumns?.length || 21) - configDisabledCols.length), label: `${Math.max(1, (allCompetencyColumns?.length || 21) - configDisabledCols.length)} ជំនាញ (ស្វ័យប្រវត្តិ)` },
+                    { val: 21, label: '២១ (បឋម MoEYS)' },
+                    { val: 14, label: '១៤ (អនុ/វិទ្យាល័យ)' },
+                    { val: 9, label: '៩ (អនុវិទ្យាល័យ)' },
+                    { val: 7, label: '៧ (វិទ្យាល័យ)' },
+                    { val: 5, label: '៥ មុខវិជ្ជា' },
+                  ].map((p) => (
+                    <button
+                      key={p.val}
+                      type="button"
+                      onClick={() => setConfigDivisor(p.val)}
+                      className={`px-2 py-1 text-xs font-bold rounded transition-colors cursor-pointer ${
+                        configDivisor === p.val
+                          ? 'bg-indigo-600 text-white shadow-xs'
+                          : 'bg-white text-indigo-900 border border-indigo-200 hover:bg-indigo-100'
+                      }`}
+                    >
+                      {p.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* 2. Examined Subjects & Skills Checklist */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <SlidersHorizontal className="w-4 h-4 text-blue-600" />
+                    <span className="text-xs font-bold text-slate-800">
+                      {language === 'km' ? 'ជ្រើសរើសមុខវិជ្ជា ឬជំនាញដែលត្រូវប្រឡង' : 'Select Examined Competencies / Subjects'}
+                    </span>
+                  </div>
+                  <div className="text-[11px] font-bold text-blue-800 bg-blue-50 px-2 py-0.5 rounded border border-blue-200">
+                    ប្រឡង {Math.max(0, (allCompetencyColumns?.length || 21) - configDisabledCols.length)} / {allCompetencyColumns?.length || 21} ជំនាញ
+                  </div>
+                </div>
+
+                <div className="space-y-3 max-h-[45vh] overflow-y-auto pr-1">
+                  {(monthlySubjectGroups || []).map((group) => {
+                    const groupColKeys = group.subColumns.map((c) => c.key);
+                    const allDisabled = groupColKeys.every((k) => configDisabledCols.includes(k));
+
+                    return (
+                      <div key={group.id} className="rounded-xl border border-slate-200 overflow-hidden bg-white shadow-2xs">
+                        <div className="px-3 py-2 bg-slate-100/90 border-b border-slate-200 flex items-center justify-between">
+                          <span className="text-xs font-bold text-slate-800">{group.nameKhmer}</span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (allDisabled) {
+                                setConfigDisabledCols((prev) => prev.filter((k) => !groupColKeys.includes(k)));
+                              } else {
+                                setConfigDisabledCols((prev) => Array.from(new Set([...prev, ...groupColKeys])));
+                              }
+                            }}
+                            className={`text-[10px] font-bold px-2 py-0.5 rounded cursor-pointer ${
+                              allDisabled
+                                ? 'bg-emerald-600 text-white'
+                                : 'bg-slate-200 hover:bg-rose-100 text-slate-700 hover:text-rose-700'
+                            }`}
+                          >
+                            {allDisabled ? 'បើកក្រុមនេះ' : 'បិទក្រុមនេះ'}
+                          </button>
+                        </div>
+                        <div className="p-2 divide-y divide-slate-100">
+                          {group.subColumns.map((col) => {
+                            const isDis = configDisabledCols.includes(col.key);
+                            return (
+                              <div
+                                key={col.key}
+                                onClick={() => {
+                                  setConfigDisabledCols((prev) =>
+                                    prev.includes(col.key)
+                                      ? prev.filter((k) => k !== col.key)
+                                      : [...prev, col.key]
+                                  );
+                                }}
+                                className={`p-2 rounded-lg flex items-center justify-between gap-2 cursor-pointer transition-colors ${
+                                  isDis
+                                    ? 'bg-slate-100/70 text-slate-400 line-through'
+                                    : 'hover:bg-blue-50 text-slate-800'
+                                }`}
+                              >
+                                <div className="flex items-center gap-2">
+                                  {isDis ? (
+                                    <Square className="w-4 h-4 text-slate-400" />
+                                  ) : (
+                                    <CheckSquare className="w-4 h-4 text-blue-600" />
+                                  )}
+                                  <span className="text-xs font-medium">{col.nameKhmer}</span>
+                                </div>
+                                <span
+                                  className={`text-[10px] font-bold px-2 py-0.5 rounded ${
+                                    isDis ? 'bg-slate-200 text-slate-500' : 'bg-emerald-100 text-emerald-800'
+                                  }`}
+                                >
+                                  {isDis ? 'មិនប្រឡង' : 'ប្រឡង'}
+                                </span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="pt-3 border-t border-slate-100 flex items-center justify-between gap-2 shrink-0">
+              <button
+                type="button"
+                onClick={() => setConfigTargetClass(null)}
+                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs transition-colors cursor-pointer"
+              >
+                {language === 'km' ? 'បោះបង់' : 'Cancel'}
+              </button>
+              <button
+                type="button"
+                onClick={handleSaveConfig}
+                className="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl text-xs transition-all shadow-md shadow-indigo-600/20 cursor-pointer flex items-center gap-1.5"
+              >
+                <CheckCircle2 className="w-4 h-4" />
+                <span>{language === 'km' ? 'រក្សាទុកក្នុង Database' : 'Save to Database'}</span>
+              </button>
+            </div>
           </div>
         </div>
       )}

@@ -89,11 +89,11 @@ export default function SettingsPage() {
     address: school.address || 'ផ្លូវលេខ ៩២ សង្កាត់វត្តភ្នំ ខណ្ឌដូនពេញ រាជធានីភ្នំពេញ',
   });
 
-  // Settings preferences
-  const [defaultDivisor, setDefaultDivisor] = useState<number>(21);
-  const [passingThreshold, setPassingThreshold] = useState<number>(50);
-  const [autoCalculateRank, setAutoCalculateRank] = useState<boolean>(true);
-  const [autoSaveAlert, setAutoSaveAlert] = useState<boolean>(true);
+  // Settings preferences from school.settings in Supabase
+  const [defaultDivisor, setDefaultDivisor] = useState<number>(school.settings?.defaultDivisor ?? 21);
+  const [passingThreshold, setPassingThreshold] = useState<number>(school.settings?.passingThreshold ?? 50);
+  const [autoCalculateRank, setAutoCalculateRank] = useState<boolean>(school.settings?.autoCalculateRank ?? true);
+  const [autoSaveAlert, setAutoSaveAlert] = useState<boolean>(school.settings?.autoSaveAlert ?? true);
 
   // UI Toasts & Modals
   const [saveToast, setSaveToast] = useState(false);
@@ -103,7 +103,34 @@ export default function SettingsPage() {
 
   const handleSaveProfile = (e: React.FormEvent) => {
     e.preventDefault();
-    updateSchool(formData);
+    updateSchool({
+      ...formData,
+      settings: {
+        ...school.settings,
+        defaultDivisor,
+        passingThreshold,
+        autoCalculateRank,
+        autoSaveAlert,
+        academicMonths,
+      },
+    });
+    setSaveToast(true);
+    setTimeout(() => setSaveToast(false), 3000);
+  };
+
+  const handleSavePreferences = () => {
+    updateSchool({
+      ...school,
+      ...formData,
+      settings: {
+        ...school.settings,
+        defaultDivisor,
+        passingThreshold,
+        autoCalculateRank,
+        autoSaveAlert,
+        academicMonths,
+      },
+    });
     setSaveToast(true);
     setTimeout(() => setSaveToast(false), 3000);
   };
@@ -702,6 +729,27 @@ export default function SettingsPage() {
       {/* ------------------------------------------------------------- */}
       {activeTab === 'SCHEDULES' && (
         <div className="space-y-6">
+          {/* Calendar & Holidays Navigation Banner */}
+          <div className="p-4 bg-gradient-to-r from-blue-600 via-indigo-600 to-indigo-700 rounded-2xl text-white flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-sm">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-white/20 backdrop-blur-xs flex items-center justify-center font-bold shrink-0">
+                <Calendar className="w-5 h-5" />
+              </div>
+              <div>
+                <h4 className="font-black text-sm">ប្រតិទិន និងថ្ងៃឈប់សម្រាកផ្លូវការ MoEYS</h4>
+                <p className="text-xs text-blue-100 mt-0.5">
+                  ពិនិត្យ និងគ្រប់គ្រងថ្ងៃឈប់សម្រាកបុណ្យជាតិ ការប្រឡងឆមាស និងវិស្សមកាលសិក្សា
+                </p>
+              </div>
+            </div>
+            <Link
+              href="/calendar"
+              className="inline-flex items-center gap-1.5 px-4 py-2 bg-white text-blue-700 hover:bg-blue-50 text-xs font-bold rounded-xl shadow-xs transition-colors shrink-0"
+            >
+              <span>បើកទំព័រប្រតិទិន</span>
+              <ArrowRight className="w-3.5 h-3.5" />
+            </Link>
+          </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {/* Morning Shift */}
             <div className="bg-white p-6 rounded-2xl border border-slate-200/90 shadow-xs space-y-4">
@@ -1167,27 +1215,119 @@ export default function SettingsPage() {
               </label>
             </div>
 
-            {/* Auto Save Feedback Setting */}
-            <div className="flex items-center justify-between p-4 bg-slate-50 rounded-xl border border-slate-200">
-              <div>
-                <div className="text-xs font-bold text-slate-900 flex items-center gap-2">
-                  <CheckCircle2 className="w-4 h-4 text-blue-600" />
-                  <span>ការជូនដំណឹងពេលរក្សាទុកទិន្នន័យ (Save Notifications)</span>
+            {/* Default Divisor Setting */}
+            <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-2.5">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <div>
+                  <div className="text-xs font-bold text-slate-900 flex items-center gap-2">
+                    <Calculator className="w-4 h-4 text-blue-600" />
+                    <span>តួរចែកពិន្ទុលំនាំដើមរបស់សាលារៀន (Default School Divisor)</span>
+                  </div>
+                  <p className="text-[11px] text-slate-500 mt-0.5">
+                    កំណត់តួរចែកមធ្យមភាគប្រចាំខែលំនាំដើមសម្រាប់ថ្នាក់រៀនថ្មី (ឧ. ២១ ជំនាញ ឬ ៧, ៩, ១៤ មុខវិជ្ជា)
+                  </p>
                 </div>
-                <p className="text-[11px] text-slate-500 mt-0.5">
-                  បង្ហាញសារបញ្ជាក់ពេលដែលទិន្នន័យពិន្ទុ ឬព័ត៌មានត្រូវបានរក្សាទុក
-                </p>
+
+                <div className="flex items-center gap-2">
+                  <input
+                    type="number"
+                    min="1"
+                    max="50"
+                    step="0.5"
+                    value={defaultDivisor}
+                    onChange={(e) => setDefaultDivisor(Math.max(1, Number(e.target.value) || 1))}
+                    className="w-20 px-3 py-1.5 bg-white text-xs font-mono font-bold text-blue-900 border border-slate-300 rounded-lg text-center focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                  />
+                  <span className="text-xs font-bold text-slate-600">តួរចែក</span>
+                </div>
               </div>
 
-              <label className="relative inline-flex items-center cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={autoSaveAlert}
-                  onChange={(e) => setAutoSaveAlert(e.target.checked)}
-                  className="sr-only peer"
-                />
-                <div className="w-11 h-6 bg-slate-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
-              </label>
+              {/* Quick Presets for Divisor */}
+              <div className="flex items-center gap-1.5 flex-wrap pt-1 border-t border-slate-200/80">
+                <span className="text-[10px] font-bold text-slate-500 mr-1">គំរូរហ័ស៖</span>
+                {[
+                  { label: '២១ ជំនាញ (បឋម/អនុវិទ្យាល័យ)', val: 21 },
+                  { label: '១៤ មុខវិជ្ជា (ឆមាស)', val: 14 },
+                  { label: '៩ មុខវិជ្ជា (អនុវិទ្យាល័យ)', val: 9 },
+                  { label: '៧ មុខវិជ្ជា (វិទ្យាល័យ)', val: 7 },
+                ].map((p) => (
+                  <button
+                    key={p.val}
+                    type="button"
+                    onClick={() => setDefaultDivisor(p.val)}
+                    className={`px-2 py-0.5 rounded text-[10px] font-bold transition-colors cursor-pointer ${
+                      defaultDivisor === p.val
+                        ? 'bg-blue-600 text-white'
+                        : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-100'
+                    }`}
+                  >
+                    {p.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Minimum Passing Threshold */}
+            <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-2.5">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <div>
+                  <div className="text-xs font-bold text-slate-900 flex items-center gap-2">
+                    <Award className="w-4 h-4 text-emerald-600" />
+                    <span>ពិន្ទុមធ្យមភាគជាប់កម្រិតទាបបំផុត (Passing Threshold %)</span>
+                  </div>
+                  <p className="text-[11px] text-slate-500 mt-0.5">
+                    ភាគរយពិន្ទុអប្បបរមាដើម្បីចាត់ទុកថាសិស្សជាប់ ឬឡើងថ្នាក់ (ស្តង់ដារ MoEYS &ge; ៥០.០០%)
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <input
+                    type="number"
+                    min="1"
+                    max="100"
+                    step="1"
+                    value={passingThreshold}
+                    onChange={(e) => setPassingThreshold(Math.max(1, Math.min(100, Number(e.target.value) || 50)))}
+                    className="w-20 px-3 py-1.5 bg-white text-xs font-mono font-bold text-emerald-900 border border-slate-300 rounded-lg text-center focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                  />
+                  <span className="text-xs font-bold text-slate-600">%</span>
+                </div>
+              </div>
+
+              {/* Quick Presets for Passing */}
+              <div className="flex items-center gap-1.5 flex-wrap pt-1 border-t border-slate-200/80">
+                <span className="text-[10px] font-bold text-slate-500 mr-1">គំរូរហ័ស៖</span>
+                {[
+                  { label: '៥០% (MoEYS Standard)', val: 50 },
+                  { label: '៦០% (កម្រិតខ្ពស់)', val: 60 },
+                  { label: '៤៥% (កម្រិតសម្រាល)', val: 45 },
+                ].map((p) => (
+                  <button
+                    key={p.val}
+                    type="button"
+                    onClick={() => setPassingThreshold(p.val)}
+                    className={`px-2 py-0.5 rounded text-[10px] font-bold transition-colors cursor-pointer ${
+                      passingThreshold === p.val
+                        ? 'bg-emerald-600 text-white'
+                        : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-100'
+                    }`}
+                  >
+                    {p.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Save Preferences Button to Database */}
+            <div className="pt-2 flex items-center justify-end">
+              <button
+                type="button"
+                onClick={handleSavePreferences}
+                className="inline-flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl transition-all shadow-md shadow-blue-500/20 cursor-pointer"
+              >
+                <Save className="w-4 h-4" />
+                <span>រក្សាទុកការកំណត់ប្រព័ន្ធទៅក្នុង Database</span>
+              </button>
             </div>
           </div>
         </div>

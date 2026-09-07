@@ -12,6 +12,16 @@ import {
   KHMER_ACADEMIC_MONTHS,
 } from './gradingEngine';
 
+export interface SchoolSettings {
+  defaultDivisor?: number;
+  semesterDefaultDivisor?: number;
+  passingThreshold?: number;
+  autoCalculateRank?: boolean;
+  autoSaveAlert?: boolean;
+  academicMonths?: any[];
+  [key: string]: any;
+}
+
 export interface SchoolInfo {
   nameKhmer: string;
   nameEnglish: string;
@@ -23,6 +33,7 @@ export interface SchoolInfo {
   phone?: string;
   email?: string;
   address?: string;
+  settings?: SchoolSettings;
 }
 
 export const CURRENT_SCHOOL: SchoolInfo = {
@@ -36,6 +47,13 @@ export const CURRENT_SCHOOL: SchoolInfo = {
   phone: '',
   email: '',
   address: '',
+  settings: {
+    defaultDivisor: 21,
+    semesterDefaultDivisor: 14,
+    passingThreshold: 50,
+    autoCalculateRank: true,
+    autoSaveAlert: true,
+  },
 };
 
 export interface ClassRoom {
@@ -61,6 +79,11 @@ export interface ClassRoom {
   homeroomTeacherName: string;
   totalStudents: number;
   femaleStudents: number;
+  // Per-classroom examined subjects & divisor stored in database
+  subjectDivisor?: number;
+  semesterDivisor?: number;
+  disabledColumnKeys?: string[];
+  examSubjectKeys?: string[];
 }
 
 export const INITIAL_CLASSES: ClassRoom[] = [];

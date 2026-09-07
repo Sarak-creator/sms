@@ -71,14 +71,25 @@ export default function ReportsPage() {
     })).filter((group) => group.subColumns.length > 0);
   }, [monthlySubjectGroups, disabledColKeys]);
 
-  const [divisorInput, setDivisorInput] = useState<string>(String(activeCompetencyColumns.length || 21));
-  const [semesterDivisorInput, setSemesterDivisorInput] = useState<string>(String(SEMESTER_EXAM_SUBJECTS.length));
+  const [divisorInput, setDivisorInput] = useState<string>(
+    String(currentClass?.subjectDivisor || activeCompetencyColumns.length || 21)
+  );
+  const [semesterDivisorInput, setSemesterDivisorInput] = useState<string>(
+    String(currentClass?.semesterDivisor || SEMESTER_EXAM_SUBJECTS.length)
+  );
   const [annualSem1DivisorInput, setAnnualSem1DivisorInput] = useState<string>(String(SEMESTER_EXAM_SUBJECTS.length));
   const [annualSem2DivisorInput, setAnnualSem2DivisorInput] = useState<string>(String(SEMESTER_EXAM_SUBJECTS.length));
 
   useEffect(() => {
-    setDivisorInput(String(activeCompetencyColumns.length || 21));
-  }, [selectedClassId, disabledColKeys.length]);
+    if (currentClass?.subjectDivisor) {
+      setDivisorInput(String(currentClass.subjectDivisor));
+    } else {
+      setDivisorInput(String(activeCompetencyColumns.length || 21));
+    }
+    if (currentClass?.semesterDivisor) {
+      setSemesterDivisorInput(String(currentClass.semesterDivisor));
+    }
+  }, [selectedClassId, currentClass?.subjectDivisor, currentClass?.semesterDivisor, disabledColKeys.length]);
 
   const subjectDivisor = !isNaN(parseFloat(divisorInput)) && parseFloat(divisorInput) > 0 ? parseFloat(divisorInput) : (activeCompetencyColumns.length || 1);
   const semesterSubjectDivisor = !isNaN(parseFloat(semesterDivisorInput)) && parseFloat(semesterDivisorInput) > 0 ? parseFloat(semesterDivisorInput) : SEMESTER_EXAM_SUBJECTS.length;

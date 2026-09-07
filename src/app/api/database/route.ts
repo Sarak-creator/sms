@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { SUPABASE_SCHEMA_SQL } from '@/lib/supabase/schemaSql';
 import { SEED_SPECIALIZATIONS } from '@/lib/schoolData';
+import { OFFICIAL_CAMBODIA_HOLIDAYS_2024_2025 } from '@/lib/holidayData';
 
 import defaultDbConfig from '@/config/database.json';
 import { ConfigManager } from '@/lib/config-manager';
@@ -13,6 +14,16 @@ export async function GET() {
   const config = await ConfigManager.getActiveDatabaseConfig();
 
   if (config && config.supabaseUrl && config.supabaseAnonKey) {
+    // Proactively ensure new tables (class_settings, system_settings, holidays) are created in database
+    const connString = config.directUrl || config.databaseUrl;
+    if (connString) {
+      try {
+        await executeSqlViaPg(connString, SUPABASE_SCHEMA_SQL);
+      } catch (err) {
+        console.log('Auto schema migration check note:', err);
+      }
+    }
+
     return NextResponse.json({
       success: true,
       configured: true,
@@ -97,7 +108,7 @@ export async function POST(req: NextRequest) {
     // -------------------------------------------------------------
     // 2. ACTION: CREATE_TABLES (Execute DDL & Save Config into Database Table)
     // -------------------------------------------------------------
-    if (action === 'CREATE_TABLES' || action === 'INIT_NEW_DATABASE') {
+    if (action === 'CREATE_TABLES' || action === 'INIT_NEW_DATABASE' || action === 'MIGRATE_TABLES') {
       let pgExecuted = false;
       let pgError = null;
 
@@ -168,6 +179,24 @@ export async function POST(req: NextRequest) {
         await supabase.from('specializations').upsert(specsToInsert);
       } catch (e) {
         console.log('Specialization auto-seed note:', e);
+      }
+
+      // 4. Seed Official Cambodian Public Holidays & MoEYS Academic Calendar
+      try {
+        const holidaysToInsert = OFFICIAL_CAMBODIA_HOLIDAYS_2024_2025.map((h) => ({
+          id: h.id,
+          title_khmer: h.titleKhmer,
+          title_english: h.titleEnglish || null,
+          date_from: h.dateFrom,
+          date_to: h.dateTo,
+          type: h.type,
+          is_day_off: h.isDayOff,
+          description: h.description || null,
+          academic_year: h.academicYear || '២០២៤ - ២០២៥',
+        }));
+        await supabase.from('holidays').upsert(holidaysToInsert);
+      } catch (e) {
+        console.log('Holiday auto-seed note:', e);
       }
 
       // Sync active database to Master Cloud Registry so ALL devices automatically receive it

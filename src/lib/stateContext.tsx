@@ -59,8 +59,12 @@ import {
   syncChapterToSupabase,
   deleteChapterFromSupabase,
   wipeAllSupabaseData,
+  syncHolidayToSupabase,
+  deleteHolidayFromSupabase,
+  seedDefaultHolidaysToSupabase,
 } from './supabase/syncService';
 import { isSupabaseConfigured, fetchServerDatabaseConfig } from './supabase/client';
+import { HolidayData, OFFICIAL_CAMBODIA_HOLIDAYS_2024_2025 } from './holidayData';
 
 export interface ScoreState {
   monthly: number[]; // 5 months per semester
@@ -227,6 +231,13 @@ interface SchoolContextType {
   disabledColumnsMap: Record<string, string[]>;
   toggleColumnForClass: (classId: string, columnKey: string) => void;
   setDisabledColumnsForClass: (classId: string, columnKeys: string[]) => void;
+  updateClassDivisor: (classId: string, subjectDivisor: number, semesterDivisor?: number) => void;
+
+  // Holidays & Academic Calendar Events
+  holidays: HolidayData[];
+  addHoliday: (holiday: HolidayData) => void;
+  updateHoliday: (id: string, updated: Partial<HolidayData>) => void;
+  deleteHoliday: (id: string) => void;
 
   // Export & Print helper
   exportToExcel: (filename: string, tableData: any[]) => void;
@@ -289,6 +300,7 @@ export function SchoolProvider({ children }: { children: React.ReactNode }) {
   const [scores, setScores] = useState<Record<string, Record<string, ScoreState>>>(() => ({}));
   const [attendance, setAttendance] = useState<Record<string, 'PRESENT' | 'ABSENT_PERMISSION' | 'ABSENT_NO_PERMISSION' | 'LATE'>>(() => ({}));
   const [disabledColumnsMap, setDisabledColumnsMap] = useState<Record<string, string[]>>({});
+  const [holidays, setHolidays] = useState<HolidayData[]>(() => OFFICIAL_CAMBODIA_HOLIDAYS_2024_2025);
 
   // Monthly Competency Scores Map: monthIndex -> studentId -> { [colKey]: score }
   const [monthlyScoresMap, setMonthlyScoresMap] = useState<Record<number, Record<string, Record<string, number>>>>(
@@ -330,7 +342,12 @@ export function SchoolProvider({ children }: { children: React.ReactNode }) {
       const data = await fetchAllDataFromSupabase();
       if (data) {
         setIsSupabaseConnected(true);
-        if (data.school) setSchool(data.school);
+        if (data.school) {
+          setSchool(data.school);
+          if (data.school.settings?.academicMonths && Array.isArray(data.school.settings.academicMonths) && data.school.settings.academicMonths.length > 0) {
+            setAcademicMonths(data.school.settings.academicMonths);
+          }
+        }
         if (data.users && data.users.length > 0) {
           setUsers(data.users);
           const savedUserId = typeof window !== 'undefined' ? localStorage.getItem('moeys_sms_current_user_id') : null;
@@ -341,6 +358,14 @@ export function SchoolProvider({ children }: { children: React.ReactNode }) {
         }
         if (data.classes) {
           setClasses(data.classes);
+          // Restore per-class disabled competency columns from database
+          const colsMap: Record<string, string[]> = {};
+          data.classes.forEach((c) => {
+            if (c.disabledColumnKeys && c.disabledColumnKeys.length > 0) {
+              colsMap[c.id] = c.disabledColumnKeys;
+            }
+          });
+          setDisabledColumnsMap(colsMap);
           if (data.classes.length > 0 && !selectedClassId) {
             setSelectedClassId(data.classes[0].id);
           }
@@ -352,6 +377,11 @@ export function SchoolProvider({ children }: { children: React.ReactNode }) {
         if (data.monthlyScoresMap) setMonthlyScoresMap(data.monthlyScoresMap);
         if (data.semesterExamScoresMap) setSemesterExamScoresMap(data.semesterExamScoresMap);
         if (data.attendance) setAttendance(data.attendance);
+        if (data.holidays && data.holidays.length > 0) {
+          setHolidays(data.holidays);
+        } else if (isSupabaseConfigured()) {
+          seedDefaultHolidaysToSupabase(OFFICIAL_CAMBODIA_HOLIDAYS_2024_2025);
+        }
       }
     } catch (err) {
       console.error('Error refreshing from Supabase:', err);
@@ -528,15 +558,30 @@ export function SchoolProvider({ children }: { children: React.ReactNode }) {
     setMonthlySubjectGroups(MONTHLY_SUBJECT_GROUPS);
   };
 
-  // Toggle or bulk set disabled competency columns for a specific classroom
+  // Toggle or bulk set disabled competency columns for a specific classroom with live Supabase persistence
   const toggleColumnForClass = (classId: string, columnKey: string) => {
+    let updatedClassItem: ClassRoom | null = null;
+    let nextCols: string[] = [];
+
     setDisabledColumnsMap((prev) => {
       const current = prev[classId] || [];
       const updated = current.includes(columnKey)
         ? current.filter((k) => k !== columnKey)
         : [...current, columnKey];
+      nextCols = updated;
       return { ...prev, [classId]: updated };
     });
+
+    setClasses((prev) =>
+      prev.map((c) => {
+        if (c.id === classId) {
+          updatedClassItem = { ...c, disabledColumnKeys: nextCols };
+          syncClassToSupabase(updatedClassItem);
+          return updatedClassItem;
+        }
+        return c;
+      })
+    );
   };
 
   const setDisabledColumnsForClass = (classId: string, columnKeys: string[]) => {
@@ -544,42 +589,154 @@ export function SchoolProvider({ children }: { children: React.ReactNode }) {
       ...prev,
       [classId]: columnKeys,
     }));
+
+    setClasses((prev) =>
+      prev.map((c) => {
+        if (c.id === classId) {
+          const updated = { ...c, disabledColumnKeys: columnKeys };
+          syncClassToSupabase(updated);
+          return updated;
+        }
+        return c;
+      })
+    );
   };
 
-  // School profile update
+  // Update custom divisor per classroom with live Supabase persistence
+  const updateClassDivisor = (classId: string, subjectDivisor: number, semesterDivisor?: number) => {
+    setClasses((prev) =>
+      prev.map((c) => {
+        if (c.id === classId) {
+          const updated: ClassRoom = {
+            ...c,
+            subjectDivisor,
+            ...(semesterDivisor !== undefined ? { semesterDivisor } : {}),
+          };
+          syncClassToSupabase(updated);
+          return updated;
+        }
+        return c;
+      })
+    );
+  };
+
+  // Holiday CRUD operations with live Supabase persistence
+  const addHoliday = (newHoliday: HolidayData) => {
+    setHolidays((prev) => {
+      const next = [...prev.filter((h) => h.id !== newHoliday.id), newHoliday];
+      next.sort((a, b) => a.dateFrom.localeCompare(b.dateFrom));
+      return next;
+    });
+    syncHolidayToSupabase(newHoliday);
+  };
+
+  const updateHoliday = (id: string, updated: Partial<HolidayData>) => {
+    setHolidays((prev) =>
+      prev.map((h) => {
+        if (h.id === id) {
+          const next = { ...h, ...updated };
+          syncHolidayToSupabase(next);
+          return next;
+        }
+        return h;
+      })
+    );
+  };
+
+  const deleteHoliday = (id: string) => {
+    setHolidays((prev) => prev.filter((h) => h.id !== id));
+    deleteHolidayFromSupabase(id);
+  };
+
+  // School profile & system configurations update with live Supabase persistence
   const updateSchool = (updated: Partial<SchoolInfo>) => {
     setSchool((prev) => {
-      const next = { ...prev, ...updated };
+      const next: SchoolInfo = {
+        ...prev,
+        ...updated,
+        settings: {
+          ...(prev.settings || {}),
+          ...(updated.settings || {}),
+        },
+      };
       syncSchoolToSupabase(next);
       return next;
     });
   };
 
-  // Academic month configuration (change month name or semester 1 vs 2)
+  // Academic month configuration with database persistence
   const updateAcademicMonth = (index: number, updated: Partial<AcademicMonthDef>) => {
-    setAcademicMonths((prev) =>
-      prev.map((m) => (m.index === index ? { ...m, ...updated } : m))
-    );
+    setAcademicMonths((prev) => {
+      const next = prev.map((m) => (m.index === index ? { ...m, ...updated } : m));
+      setSchool((prevSchool) => {
+        const updatedSchool: SchoolInfo = {
+          ...prevSchool,
+          settings: {
+            ...(prevSchool.settings || {}),
+            academicMonths: next,
+          },
+        };
+        syncSchoolToSupabase(updatedSchool);
+        return updatedSchool;
+      });
+      return next;
+    });
   };
 
   const setMonthSemester = (index: number, semester: 1 | 2) => {
-    setAcademicMonths((prev) =>
-      prev.map((m) => (m.index === index ? { ...m, semester } : m))
-    );
+    setAcademicMonths((prev) => {
+      const next = prev.map((m) => (m.index === index ? { ...m, semester } : m));
+      setSchool((prevSchool) => {
+        const updatedSchool: SchoolInfo = {
+          ...prevSchool,
+          settings: {
+            ...(prevSchool.settings || {}),
+            academicMonths: next,
+          },
+        };
+        syncSchoolToSupabase(updatedSchool);
+        return updatedSchool;
+      });
+      return next;
+    });
   };
 
   const toggleMonthExamStatus = (index: number) => {
-    setAcademicMonths((prev) =>
-      prev.map((m) =>
+    setAcademicMonths((prev) => {
+      const next = prev.map((m) =>
         m.index === index ? { ...m, isExamMonth: m.isExamMonth === false ? true : false } : m
-      )
-    );
+      );
+      setSchool((prevSchool) => {
+        const updatedSchool: SchoolInfo = {
+          ...prevSchool,
+          settings: {
+            ...(prevSchool.settings || {}),
+            academicMonths: next,
+          },
+        };
+        syncSchoolToSupabase(updatedSchool);
+        return updatedSchool;
+      });
+      return next;
+    });
   };
 
   const setMonthExamStatus = (index: number, isExam: boolean) => {
-    setAcademicMonths((prev) =>
-      prev.map((m) => (m.index === index ? { ...m, isExamMonth: isExam } : m))
-    );
+    setAcademicMonths((prev) => {
+      const next = prev.map((m) => (m.index === index ? { ...m, isExamMonth: isExam } : m));
+      setSchool((prevSchool) => {
+        const updatedSchool: SchoolInfo = {
+          ...prevSchool,
+          settings: {
+            ...(prevSchool.settings || {}),
+            academicMonths: next,
+          },
+        };
+        syncSchoolToSupabase(updatedSchool);
+        return updatedSchool;
+      });
+      return next;
+    });
   };
 
   // Reset all system data to MoEYS Standard Defaults (Clean State)
@@ -1397,6 +1554,11 @@ export function SchoolProvider({ children }: { children: React.ReactNode }) {
         disabledColumnsMap,
         toggleColumnForClass,
         setDisabledColumnsForClass,
+        updateClassDivisor,
+        holidays,
+        addHoliday,
+        updateHoliday,
+        deleteHoliday,
         exportToExcel,
         exportSystemData,
         importSystemData,

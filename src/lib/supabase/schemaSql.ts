@@ -33,6 +33,7 @@ CREATE TABLE IF NOT EXISTS public.schools (
   phone VARCHAR(32),
   email VARCHAR(128),
   address TEXT,
+  settings JSONB DEFAULT '{}'::jsonb,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -82,6 +83,10 @@ CREATE TABLE IF NOT EXISTS public.classes (
   homeroom_teacher_name TEXT,
   total_students INTEGER DEFAULT 0,
   female_students INTEGER DEFAULT 0,
+  subject_divisor NUMERIC DEFAULT 21,
+  semester_divisor NUMERIC DEFAULT 14,
+  disabled_column_keys JSONB DEFAULT '[]'::jsonb,
+  exam_subject_keys JSONB DEFAULT '[]'::jsonb,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -166,6 +171,61 @@ CREATE TABLE IF NOT EXISTS public.chapters (
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- 11. HOLIDAYS & ACADEMIC CALENDAR TABLE (Cambodia MoEYS Public Holidays & Academic Events)
+CREATE TABLE IF NOT EXISTS public.holidays (
+  id VARCHAR(64) PRIMARY KEY,
+  title_khmer TEXT NOT NULL,
+  title_english TEXT,
+  date_from DATE NOT NULL,
+  date_to DATE NOT NULL,
+  type VARCHAR(32) NOT NULL DEFAULT 'PUBLIC_HOLIDAY',
+  is_day_off BOOLEAN DEFAULT true,
+  description TEXT,
+  academic_year VARCHAR(32) DEFAULT '២០២៤ - ២០២៥',
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 12. CLASS SETTINGS & EXAM SUBJECTS TABLE (Dedicated table for per-class divisors, examined subjects & disabled skills)
+CREATE TABLE IF NOT EXISTS public.class_settings (
+  id VARCHAR(64) PRIMARY KEY,
+  class_id VARCHAR(64) UNIQUE NOT NULL REFERENCES public.classes(id) ON DELETE CASCADE,
+  subject_divisor NUMERIC NOT NULL DEFAULT 21,
+  semester_divisor NUMERIC NOT NULL DEFAULT 14,
+  disabled_column_keys JSONB NOT NULL DEFAULT '[]'::jsonb,
+  exam_subject_keys JSONB NOT NULL DEFAULT '[]'::jsonb,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 13. SYSTEM & SCHOOL SETTINGS TABLE (Dedicated table for system configurations, school settings, and academic months)
+CREATE TABLE IF NOT EXISTS public.system_settings (
+  id VARCHAR(64) PRIMARY KEY DEFAULT 'default-settings',
+  school_id VARCHAR(64) DEFAULT 'current-school',
+  default_divisor NUMERIC NOT NULL DEFAULT 21,
+  passing_threshold NUMERIC NOT NULL DEFAULT 50,
+  auto_calculate_rank BOOLEAN NOT NULL DEFAULT true,
+  auto_save_alert BOOLEAN NOT NULL DEFAULT true,
+  academic_months JSONB NOT NULL DEFAULT '[]'::jsonb,
+  custom_settings JSONB NOT NULL DEFAULT '{}'::jsonb,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Safe Schema Migration Upgrades (Alter existing tables if columns are missing)
+DO $$
+BEGIN
+  ALTER TABLE public.classes ADD COLUMN IF NOT EXISTS subject_divisor NUMERIC DEFAULT 21;
+  ALTER TABLE public.classes ADD COLUMN IF NOT EXISTS semester_divisor NUMERIC DEFAULT 14;
+  ALTER TABLE public.classes ADD COLUMN IF NOT EXISTS disabled_column_keys JSONB DEFAULT '[]'::jsonb;
+  ALTER TABLE public.classes ADD COLUMN IF NOT EXISTS exam_subject_keys JSONB DEFAULT '[]'::jsonb;
+  ALTER TABLE public.schools ADD COLUMN IF NOT EXISTS settings JSONB DEFAULT '{}'::jsonb;
+EXCEPTION WHEN OTHERS THEN
+  -- ignore if column already exists or table is being created
+  NULL;
+END
+$$;
+
 -- Enable Row Level Security (RLS) on all tables
 ALTER TABLE public.system_configurations ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.schools ENABLE ROW LEVEL SECURITY;
@@ -178,6 +238,9 @@ ALTER TABLE public.semester_exam_scores ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.attendance_records ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.specializations ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.chapters ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.holidays ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.class_settings ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.system_settings ENABLE ROW LEVEL SECURITY;
 
 -- Default open policies for authenticated and anon clients (with service_role bypass)
 DO $$
@@ -214,6 +277,15 @@ BEGIN
   END IF;
   IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Public Access Chapters') THEN
     CREATE POLICY "Public Access Chapters" ON public.chapters FOR ALL USING (true) WITH CHECK (true);
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Public Access Holidays') THEN
+    CREATE POLICY "Public Access Holidays" ON public.holidays FOR ALL USING (true) WITH CHECK (true);
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Public Access Class Settings') THEN
+    CREATE POLICY "Public Access Class Settings" ON public.class_settings FOR ALL USING (true) WITH CHECK (true);
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Public Access System Settings') THEN
+    CREATE POLICY "Public Access System Settings" ON public.system_settings FOR ALL USING (true) WITH CHECK (true);
   END IF;
 END
 $$;

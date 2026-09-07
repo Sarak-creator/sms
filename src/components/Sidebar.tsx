@@ -14,6 +14,7 @@ import {
   BookOpen,
   Bookmark,
   FileSpreadsheet,
+  Calendar,
   Settings,
   Plus,
   X,
@@ -100,6 +101,12 @@ export function Sidebar() {
       href: '/reports',
       icon: FileSpreadsheet,
       badge: language === 'km' ? 'ទម្រង់ ក១' : 'MoEYS K1',
+    },
+    {
+      label: language === 'km' ? 'ប្រតិទិន & ថ្ងៃឈប់សម្រាក' : 'Calendar & Holidays',
+      href: '/calendar',
+      icon: Calendar,
+      badge: language === 'km' ? 'ឈប់សម្រាក' : 'Holidays',
     },
     {
       label: t('navUsers'),

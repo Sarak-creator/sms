@@ -77,6 +77,7 @@ export default function GradebookPage() {
     disabledColumnsMap,
     toggleColumnForClass,
     setDisabledColumnsForClass,
+    updateClassDivisor,
     exportToExcel,
     language,
     t,
@@ -108,8 +109,8 @@ export default function GradebookPage() {
 
   // Disabled columns for current selected class
   const disabledColKeys = useMemo(() => {
-    return disabledColumnsMap[selectedClassId] || [];
-  }, [disabledColumnsMap, selectedClassId]);
+    return disabledColumnsMap[selectedClassId] || currentClass?.disabledColumnKeys || [];
+  }, [disabledColumnsMap, selectedClassId, currentClass?.disabledColumnKeys]);
 
   // Active competency columns filtered by current class's disabled keys
   const activeCompetencyColumns = useMemo(() => {
@@ -129,16 +130,27 @@ export default function GradebookPage() {
     return students.filter((s) => s.classId === selectedClassId);
   }, [students, selectedClassId]);
 
-  // Subject Divisor state for calculating average
-  const [divisorInput, setDivisorInput] = useState<string>(String(activeCompetencyColumns.length || 21));
-  const [semesterDivisorInput, setSemesterDivisorInput] = useState<string>(String(SEMESTER_EXAM_SUBJECTS.length));
+  // Subject Divisor state for calculating average (loaded from selected classroom's database record)
+  const [divisorInput, setDivisorInput] = useState<string>(
+    String(currentClass?.subjectDivisor || activeCompetencyColumns.length || 21)
+  );
+  const [semesterDivisorInput, setSemesterDivisorInput] = useState<string>(
+    String(currentClass?.semesterDivisor || SEMESTER_EXAM_SUBJECTS.length)
+  );
   const [annualSem1DivisorInput, setAnnualSem1DivisorInput] = useState<string>(String(SEMESTER_EXAM_SUBJECTS.length));
   const [annualSem2DivisorInput, setAnnualSem2DivisorInput] = useState<string>(String(SEMESTER_EXAM_SUBJECTS.length));
 
   // Sync divisor when active columns or selected class change
   useEffect(() => {
-    setDivisorInput(String(activeCompetencyColumns.length || 21));
-  }, [selectedClassId, disabledColKeys.length]);
+    if (currentClass?.subjectDivisor) {
+      setDivisorInput(String(currentClass.subjectDivisor));
+    } else {
+      setDivisorInput(String(activeCompetencyColumns.length || 21));
+    }
+    if (currentClass?.semesterDivisor) {
+      setSemesterDivisorInput(String(currentClass.semesterDivisor));
+    }
+  }, [selectedClassId, currentClass?.subjectDivisor, currentClass?.semesterDivisor, disabledColKeys.length]);
 
   const subjectDivisor = useMemo(() => {
     const num = parseFloat(divisorInput);
@@ -792,7 +804,13 @@ export default function GradebookPage() {
                     max="100"
                     step="1"
                     value={divisorInput}
-                    onChange={(e) => setDivisorInput(e.target.value)}
+                    onChange={(e) => {
+                      setDivisorInput(e.target.value);
+                      const num = parseFloat(e.target.value);
+                      if (!isNaN(num) && num > 0 && selectedClassId) {
+                        updateClassDivisor(selectedClassId, num);
+                      }
+                    }}
                     placeholder="21"
                     title="បញ្ចូលចំនួនមុខវិជ្ជា ឬតួរចែកសម្រាប់គណនាមធ្យមភាគ (ពិន្ទុសរុប ÷ តួរចែក)"
                     className="w-16 px-2 py-1 text-center font-mono font-black text-xs text-indigo-900 bg-indigo-50 border border-indigo-200 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white transition-all shadow-inner"
@@ -808,7 +826,13 @@ export default function GradebookPage() {
                       <button
                         key={p.val}
                         type="button"
-                        onClick={() => setDivisorInput(p.val)}
+                        onClick={() => {
+                          setDivisorInput(p.val);
+                          const num = parseFloat(p.val);
+                          if (!isNaN(num) && num > 0 && selectedClassId) {
+                            updateClassDivisor(selectedClassId, num);
+                          }
+                        }}
                         className={`px-1.5 py-0.5 text-[10px] font-bold rounded transition-colors cursor-pointer ${
                           divisorInput === p.val
                             ? 'bg-indigo-600 text-white shadow-xs'
@@ -2531,14 +2555,19 @@ export default function GradebookPage() {
                 <button
                   type="button"
                   onClick={() => {
-                    setDivisorInput(String(activeCompetencyColumns.length));
+                    const nextDivisor = activeCompetencyColumns.length;
+                    setDivisorInput(String(nextDivisor));
+                    if (selectedClassId) {
+                      updateClassDivisor(selectedClassId, nextDivisor);
+                      setDisabledColumnsForClass(selectedClassId, disabledColKeys);
+                    }
                     setIsColumnModalOpen(false);
                     triggerSave();
                   }}
                   className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl transition-all shadow-xs cursor-pointer flex items-center gap-1.5"
                 >
                   <CheckCircle2 className="w-4 h-4" />
-                  <span>រក្សាទុក និងអនុវត្ត ({activeCompetencyColumns.length} មុខវិជ្ជា)</span>
+                  <span>រក្សាទុកក្នុង Database & អនុវត្ត ({activeCompetencyColumns.length} មុខវិជ្ជា)</span>
                 </button>
               </div>
             </div>
