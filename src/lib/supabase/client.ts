@@ -1,5 +1,6 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { DatabaseConfig } from './types';
+import defaultDbConfig from '@/config/database.json';
 
 export const STORAGE_KEY_DB_CONFIG = 'moeys_sms_supabase_config';
 export const STORAGE_KEY_DB_PROFILES = 'moeys_sms_db_profiles';
@@ -134,16 +135,45 @@ export function getStoredDatabaseConfig(): DatabaseConfig | null {
     }
   }
   if (memoryCachedConfig) return memoryCachedConfig;
-  if (typeof window === 'undefined') return null;
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY_DB_CONFIG);
-    if (!raw) return null;
-    const parsed = JSON.parse(raw);
-    memoryCachedConfig = parsed;
-    return parsed;
-  } catch {
+  if (typeof window === 'undefined') {
+    if (defaultDbConfig?.supabaseUrl && defaultDbConfig?.supabaseAnonKey) {
+      return {
+        supabaseUrl: defaultDbConfig.supabaseUrl,
+        supabaseAnonKey: defaultDbConfig.supabaseAnonKey,
+        supabaseServiceRoleKey: defaultDbConfig.supabaseServiceRoleKey || undefined,
+        databaseUrl: defaultDbConfig.databaseUrl || undefined,
+        directUrl: defaultDbConfig.directUrl || undefined,
+        isConnected: true,
+        isInitialized: true,
+      };
+    }
     return null;
   }
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY_DB_CONFIG);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      memoryCachedConfig = parsed;
+      return parsed;
+    }
+  } catch {}
+
+  // Fallback to committed database.json config
+  if (defaultDbConfig?.supabaseUrl && defaultDbConfig?.supabaseAnonKey) {
+    const fallbackCfg: DatabaseConfig = {
+      supabaseUrl: defaultDbConfig.supabaseUrl,
+      supabaseAnonKey: defaultDbConfig.supabaseAnonKey,
+      supabaseServiceRoleKey: defaultDbConfig.supabaseServiceRoleKey || undefined,
+      databaseUrl: defaultDbConfig.databaseUrl || undefined,
+      directUrl: defaultDbConfig.directUrl || undefined,
+      isConnected: true,
+      isInitialized: true,
+    };
+    memoryCachedConfig = fallbackCfg;
+    return fallbackCfg;
+  }
+
+  return null;
 }
 
 export function saveStoredDatabaseConfig(config: DatabaseConfig) {
@@ -156,15 +186,15 @@ export function saveStoredDatabaseConfig(config: DatabaseConfig) {
 
 export function isSupabaseConfigured(customConfig?: DatabaseConfig): boolean {
   const config = customConfig || getStoredDatabaseConfig();
-  const url = config?.supabaseUrl || process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key = config?.supabaseAnonKey || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  const url = config?.supabaseUrl || process.env.NEXT_PUBLIC_SUPABASE_URL || defaultDbConfig?.supabaseUrl;
+  const key = config?.supabaseAnonKey || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || defaultDbConfig?.supabaseAnonKey;
   return Boolean(url && key);
 }
 
 export function createSupabaseBrowserClient(customConfig?: DatabaseConfig): SupabaseClient | null {
   const config = customConfig || getStoredDatabaseConfig();
-  const url = config?.supabaseUrl || process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key = config?.supabaseAnonKey || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  const url = config?.supabaseUrl || process.env.NEXT_PUBLIC_SUPABASE_URL || defaultDbConfig?.supabaseUrl;
+  const key = config?.supabaseAnonKey || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || defaultDbConfig?.supabaseAnonKey;
 
   if (!url || !key) {
     return null;

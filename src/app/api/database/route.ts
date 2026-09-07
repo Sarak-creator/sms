@@ -3,12 +3,14 @@ import { createClient } from '@supabase/supabase-js';
 import { SUPABASE_SCHEMA_SQL } from '@/lib/supabase/schemaSql';
 import { SEED_SPECIALIZATIONS } from '@/lib/schoolData';
 
+import defaultDbConfig from '@/config/database.json';
+
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
 export async function GET() {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
-  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY;
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL || defaultDbConfig?.supabaseUrl;
+  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || defaultDbConfig?.supabaseAnonKey;
 
   if (supabaseUrl && supabaseAnonKey) {
     return NextResponse.json({
@@ -16,13 +18,15 @@ export async function GET() {
       configured: true,
       supabaseUrl,
       supabaseAnonKey,
+      databaseUrl: defaultDbConfig?.databaseUrl || process.env.DATABASE_URL,
+      directUrl: defaultDbConfig?.directUrl || process.env.DIRECT_URL,
     });
   }
 
   return NextResponse.json({
     success: true,
     configured: false,
-    message: 'No domain environment variables set yet.',
+    message: 'No domain database configured yet.',
   });
 }
 
