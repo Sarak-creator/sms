@@ -3,20 +3,28 @@ import { DatabaseConfig } from './types';
 
 export const STORAGE_KEY_DB_CONFIG = 'moeys_sms_supabase_config';
 
+let memoryCachedConfig: DatabaseConfig | null = null;
+
 export function getStoredDatabaseConfig(): DatabaseConfig | null {
+  if (memoryCachedConfig) return memoryCachedConfig;
   if (typeof window === 'undefined') return null;
   try {
     const raw = localStorage.getItem(STORAGE_KEY_DB_CONFIG);
     if (!raw) return null;
-    return JSON.parse(raw);
+    const parsed = JSON.parse(raw);
+    memoryCachedConfig = parsed;
+    return parsed;
   } catch {
     return null;
   }
 }
 
 export function saveStoredDatabaseConfig(config: DatabaseConfig) {
+  memoryCachedConfig = config;
   if (typeof window === 'undefined') return;
-  localStorage.setItem(STORAGE_KEY_DB_CONFIG, JSON.stringify(config));
+  try {
+    localStorage.setItem(STORAGE_KEY_DB_CONFIG, JSON.stringify(config));
+  } catch {}
 }
 
 export function isSupabaseConfigured(customConfig?: DatabaseConfig): boolean {
@@ -44,10 +52,50 @@ export function createSupabaseBrowserClient(customConfig?: DatabaseConfig): Supa
 }
 
 /**
+ * Fetch and sync system configuration from the domain server endpoint (/api/database)
+ * This enables any new device or new browser opening the domain link to automatically
+ * receive the Supabase configuration without needing manual entry.
+ */
+export async function fetchServerDatabaseConfig(): Promise<DatabaseConfig | null> {
+  const existing = getStoredDatabaseConfig();
+  if (existing && existing.supabaseUrl && existing.supabaseAnonKey) {
+    return existing;
+  }
+
+  if (typeof window !== 'undefined') {
+    try {
+      const res = await fetch('/api/database');
+      if (res.ok) {
+        const data = await res.json();
+        if (data.configured && data.supabaseUrl && data.supabaseAnonKey) {
+          const cfg: DatabaseConfig = {
+            supabaseUrl: data.supabaseUrl,
+            supabaseAnonKey: data.supabaseAnonKey,
+            isConnected: true,
+            isInitialized: true,
+            connectedAt: new Date().toISOString(),
+          };
+          saveStoredDatabaseConfig(cfg);
+          return cfg;
+        }
+      }
+    } catch (e) {
+      console.error('Error fetching server database configuration:', e);
+    }
+  }
+
+  return null;
+}
+
+/**
  * Fetch and sync system configuration stored directly inside the Supabase database table
  */
 export async function fetchDatabaseConfigFromSupabase(): Promise<DatabaseConfig | null> {
-  const supabase = createSupabaseBrowserClient();
+  let supabase = createSupabaseBrowserClient();
+  if (!supabase) {
+    await fetchServerDatabaseConfig();
+    supabase = createSupabaseBrowserClient();
+  }
   if (!supabase) return null;
 
   try {

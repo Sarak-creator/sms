@@ -6,6 +6,26 @@ import { SEED_SPECIALIZATIONS } from '@/lib/schoolData';
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
+export async function GET() {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
+  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY;
+
+  if (supabaseUrl && supabaseAnonKey) {
+    return NextResponse.json({
+      success: true,
+      configured: true,
+      supabaseUrl,
+      supabaseAnonKey,
+    });
+  }
+
+  return NextResponse.json({
+    success: true,
+    configured: false,
+    message: 'No domain environment variables set yet.',
+  });
+}
+
 // Helper function to execute SQL via PostgreSQL client
 async function executeSqlViaPg(connectionString: string, sql: string) {
   const { Client } = await import('pg');

@@ -60,7 +60,7 @@ import {
   deleteChapterFromSupabase,
   wipeAllSupabaseData,
 } from './supabase/syncService';
-import { isSupabaseConfigured } from './supabase/client';
+import { isSupabaseConfigured, fetchServerDatabaseConfig } from './supabase/client';
 
 export interface ScoreState {
   monthly: number[]; // 5 months per semester
@@ -322,6 +322,9 @@ export function SchoolProvider({ children }: { children: React.ReactNode }) {
 
   // Refresh and load all data from Supabase live database
   const refreshFromSupabase = async () => {
+    if (!isSupabaseConfigured()) {
+      await fetchServerDatabaseConfig();
+    }
     if (!isSupabaseConfigured()) return;
     try {
       const data = await fetchAllDataFromSupabase();

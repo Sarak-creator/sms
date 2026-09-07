@@ -30,7 +30,7 @@ import {
   Globe2,
 } from 'lucide-react';
 import { DatabaseConfig, InitialSchoolSetupForm } from '@/lib/supabase/types';
-import { getStoredDatabaseConfig, saveStoredDatabaseConfig, isSupabaseConfigured } from '@/lib/supabase/client';
+import { getStoredDatabaseConfig, saveStoredDatabaseConfig, isSupabaseConfigured, fetchServerDatabaseConfig } from '@/lib/supabase/client';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -76,12 +76,19 @@ export default function LoginPage() {
     principalPassword: '',
   });
 
-  // Load saved database configuration on mount
+  // Load saved database configuration on mount (LocalStorage or Server Domain Discovery)
   useEffect(() => {
-    const saved = getStoredDatabaseConfig();
-    if (saved) {
-      setDbConfig(saved);
-    }
+    const initDb = async () => {
+      let saved = getStoredDatabaseConfig();
+      if (!saved || !saved.supabaseUrl) {
+        saved = await fetchServerDatabaseConfig();
+      }
+      if (saved && saved.supabaseUrl) {
+        setDbConfig(saved);
+        refreshFromSupabase();
+      }
+    };
+    initDb();
   }, []);
 
   // Handle Form Submit
