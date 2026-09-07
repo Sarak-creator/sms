@@ -6,9 +6,7 @@ import { useRouter } from 'next/navigation';
 import { useSchool } from '@/lib/stateContext';
 import {
   Menu,
-  Printer,
   ShieldCheck,
-  Settings,
   Users,
   ChevronDown,
   UserCheck,
@@ -151,38 +149,6 @@ export function Header() {
             <span className="hidden sm:inline">ENG</span>
           </button>
         </div>
-
-        {/* Users & Permissions Management Link */}
-        <Link
-          href="/users"
-          className="inline-flex items-center gap-1.5 px-2.5 py-1.5 sm:px-3 sm:py-1.5 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors border border-slate-200/80 cursor-pointer shadow-2xs"
-          title={t('navUsers')}
-        >
-          <Users className="w-3.5 h-3.5 text-slate-600 shrink-0" />
-          <span className="hidden lg:inline">{t('navUsers')}</span>
-        </Link>
-
-        {/* Settings Button */}
-        <Link
-          href="/settings"
-          className="inline-flex items-center gap-1.5 px-2.5 py-1.5 sm:px-3 sm:py-1.5 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors border border-slate-200/80 cursor-pointer shadow-2xs"
-          title={t('navSettings')}
-        >
-          <Settings className="w-3.5 h-3.5 text-slate-600 shrink-0" />
-          <span className="hidden md:inline">{t('navSettings')}</span>
-        </Link>
-
-        {/* Print Button */}
-        <button
-          onClick={() => window.print()}
-          className="inline-flex items-center gap-1.5 px-2.5 py-1.5 sm:px-3 sm:py-1.5 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors border border-slate-200/80 cursor-pointer shadow-2xs"
-          title={t('print')}
-        >
-          <Printer className="w-3.5 h-3.5 text-slate-600 shrink-0" />
-          <span className="hidden md:inline">{t('print')}</span>
-        </button>
-
-        <div className="hidden sm:block h-5 w-px bg-slate-200"></div>
 
         {/* User Card & Role Switcher Dropdown */}
         <div className="relative" ref={menuRef}>
