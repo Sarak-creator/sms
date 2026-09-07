@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import { Client } from 'pg';
 import { SUPABASE_SCHEMA_SQL } from '@/lib/supabase/schemaSql';
 import { SEED_SPECIALIZATIONS } from '@/lib/schoolData';
 
@@ -9,6 +8,7 @@ export const runtime = 'nodejs';
 
 // Helper function to execute SQL via PostgreSQL client
 async function executeSqlViaPg(connectionString: string, sql: string) {
+  const { Client } = await import('pg');
   const client = new Client({
     connectionString,
     ssl: { rejectUnauthorized: false },
