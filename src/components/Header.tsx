@@ -16,7 +16,6 @@ import {
   BookOpen,
   Eye,
   Shield,
-  Check,
   LogOut,
   LogIn,
 } from 'lucide-react';
@@ -31,9 +30,7 @@ export function Header() {
     language,
     setLanguage,
     t,
-    users,
     currentUser,
-    switchUserRole,
     logout,
     canAccessRoute,
   } = useSchool();
@@ -193,7 +190,7 @@ export function Header() {
             type="button"
             onClick={() => setIsUserMenuOpen((prev) => !prev)}
             className="flex items-center gap-2 sm:gap-2.5 p-1 sm:p-1.5 rounded-xl hover:bg-slate-100 transition-colors cursor-pointer text-left group border border-transparent hover:border-slate-200"
-            title={t('switchUserLabel')}
+            title={currentUser?.khmerName || t('currentUserLabel')}
           >
             <div
               className={`w-8 h-8 rounded-full bg-gradient-to-tr ${
@@ -227,52 +224,6 @@ export function Header() {
                 <div className="text-[10px] text-slate-500 font-mono mt-0.5">
                   {currentUser?.email}
                 </div>
-              </div>
-
-              <div className="px-3 py-1.5 text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center justify-between">
-                <span>{t('switchUserLabel')}</span>
-                <span className="text-[9px] bg-blue-50 text-blue-700 px-1.5 py-0.5 rounded font-bold">
-                  {users.length} Users
-                </span>
-              </div>
-
-              <div className="max-h-60 overflow-y-auto space-y-1">
-                {users.map((u) => {
-                  const isCur = u.id === currentUser?.id;
-                  const roleBadge = getRoleBadge(u.role);
-                  const RoleIcon = roleBadge.icon;
-
-                  return (
-                    <button
-                      key={u.id}
-                      type="button"
-                      onClick={() => {
-                        switchUserRole(u.id);
-                        setIsUserMenuOpen(false);
-                      }}
-                      className={`w-full p-2 rounded-xl text-left text-xs transition-colors flex items-center justify-between cursor-pointer ${
-                        isCur ? 'bg-blue-50/80 text-blue-900 font-bold' : 'hover:bg-slate-50 text-slate-700'
-                      }`}
-                    >
-                      <div className="flex items-center gap-2 min-w-0">
-                        <div
-                          className={`w-7 h-7 rounded-full bg-gradient-to-tr ${u.avatarColor} text-white flex items-center justify-center font-bold text-[10px] shrink-0`}
-                        >
-                          {u.khmerName.charAt(0)}
-                        </div>
-                        <div className="min-w-0">
-                          <div className="font-bold truncate text-slate-800">{u.khmerName}</div>
-                          <div className="text-[10px] text-slate-400 flex items-center gap-1 font-medium">
-                            <RoleIcon className="w-2.5 h-2.5" />
-                            <span className="truncate">{roleBadge.text}</span>
-                          </div>
-                        </div>
-                      </div>
-
-                      {isCur && <Check className="w-4 h-4 text-blue-600 shrink-0 ml-1.5" />}
-                    </button>
-                  );
-                })}
               </div>
 
               <div className="pt-2 border-t border-slate-100 mt-1 space-y-1">

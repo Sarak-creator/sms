@@ -31,7 +31,6 @@ import {
   Lock,
   Unlock,
   Sparkles,
-  KeyRound,
   Check,
   Building2,
   Bookmark,
@@ -77,7 +76,6 @@ export default function UsersPage() {
     users,
     currentUser,
     setCurrentUser,
-    switchUserRole,
     addUser,
     updateUser,
     deleteUser,
@@ -470,7 +468,7 @@ export default function UsersPage() {
             {currentUser?.khmerName}
           </div>
           <div className="text-[10px] text-slate-500 font-mono flex items-center gap-1">
-            <KeyRound className="w-3 h-3 text-blue-500" />
+            <Shield className="w-3 h-3 text-blue-500" />
             <span>{currentUser?.role}</span>
           </div>
         </div>
@@ -667,27 +665,6 @@ export default function UsersPage() {
                     {/* Actions */}
                     <td className="p-3 text-center">
                       <div className="flex items-center justify-center gap-1.5">
-                        {/* Simulate / Switch To this User */}
-                        <button
-                          type="button"
-                          onClick={() => {
-                            switchUserRole(u.id);
-                            showToast(
-                              language === 'km'
-                                ? `បានប្តូរទៅប្រើប្រាស់គណនី "${u.khmerName}" (${roleConfig.labelKhmer})`
-                                : `Switched active user to "${u.latinName}" (${roleConfig.labelEnglish})`
-                            );
-                          }}
-                          className={`p-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                            isCurrentActive
-                              ? 'bg-blue-600 text-white shadow-xs'
-                              : 'bg-slate-100 hover:bg-blue-50 hover:text-blue-700 text-slate-700'
-                          }`}
-                          title={language === 'km' ? 'ប្តូរមកប្រើគណនីនេះ (តេស្តសិទ្ធិ)' : 'Switch to this User'}
-                        >
-                          <KeyRound className="w-3.5 h-3.5" />
-                        </button>
-
                         {/* Edit User & Permissions */}
                         <button
                           type="button"
