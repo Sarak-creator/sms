@@ -81,15 +81,15 @@ export default function LoginPage() {
     principalPassword: '',
   });
 
-  // Load saved database configuration on mount (LocalStorage, database.json or Server Domain Discovery)
+  // Load saved database configuration on mount (Fetch from Server Cloud Registry)
   useEffect(() => {
     const initDb = async () => {
-      let saved = getStoredDatabaseConfig();
-      if (!saved || !saved.supabaseUrl) {
-        saved = await fetchServerDatabaseConfig();
+      let active = await fetchServerDatabaseConfig();
+      if (!active || !active.supabaseUrl) {
+        active = getStoredDatabaseConfig();
       }
-      if (saved && saved.supabaseUrl) {
-        setDbConfig(saved);
+      if (active && active.supabaseUrl) {
+        setDbConfig(active);
         refreshFromSupabase();
       }
     };

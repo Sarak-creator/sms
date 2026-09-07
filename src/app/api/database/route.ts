@@ -4,22 +4,23 @@ import { SUPABASE_SCHEMA_SQL } from '@/lib/supabase/schemaSql';
 import { SEED_SPECIALIZATIONS } from '@/lib/schoolData';
 
 import defaultDbConfig from '@/config/database.json';
+import { ConfigManager } from '@/lib/config-manager';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
 export async function GET() {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL || defaultDbConfig?.supabaseUrl;
-  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || defaultDbConfig?.supabaseAnonKey;
+  const config = await ConfigManager.getActiveDatabaseConfig();
 
-  if (supabaseUrl && supabaseAnonKey) {
+  if (config && config.supabaseUrl && config.supabaseAnonKey) {
     return NextResponse.json({
       success: true,
       configured: true,
-      supabaseUrl,
-      supabaseAnonKey,
-      databaseUrl: defaultDbConfig?.databaseUrl || process.env.DATABASE_URL,
-      directUrl: defaultDbConfig?.directUrl || process.env.DIRECT_URL,
+      supabaseUrl: config.supabaseUrl,
+      supabaseAnonKey: config.supabaseAnonKey,
+      supabaseServiceRoleKey: config.supabaseServiceRoleKey,
+      databaseUrl: config.databaseUrl,
+      directUrl: config.directUrl,
     });
   }
 
@@ -169,6 +170,17 @@ export async function POST(req: NextRequest) {
         console.log('Specialization auto-seed note:', e);
       }
 
+      // Sync active database to Master Cloud Registry so ALL devices automatically receive it
+      await ConfigManager.setActiveDatabaseConfig({
+        supabaseUrl,
+        supabaseAnonKey,
+        supabaseServiceRoleKey: supabaseServiceRoleKey || undefined,
+        databaseUrl: databaseUrl || undefined,
+        directUrl: directUrl || undefined,
+        isConnected: true,
+        isInitialized: true,
+      });
+
       return NextResponse.json({
         success: true,
         pgExecuted,
@@ -265,6 +277,17 @@ export async function POST(req: NextRequest) {
         avatarColor: 'from-blue-600 to-indigo-600',
       };
 
+      // Sync active database to Master Cloud Registry so ALL devices automatically receive it
+      await ConfigManager.setActiveDatabaseConfig({
+        supabaseUrl,
+        supabaseAnonKey,
+        supabaseServiceRoleKey: supabaseServiceRoleKey || undefined,
+        databaseUrl: databaseUrl || undefined,
+        directUrl: directUrl || undefined,
+        isConnected: true,
+        isInitialized: true,
+      });
+
       return NextResponse.json({
         success: true,
         message: 'ចុះឈ្មោះសាលារៀន និងគណនីនាយកសាលាបានជោគជ័យ!',
@@ -274,9 +297,9 @@ export async function POST(req: NextRequest) {
     }
 
     // -------------------------------------------------------------
-    // 4. ACTION: CONNECT_OLD_DATABASE
+    // 4. ACTION: CONNECT_OLD_DATABASE & UPDATE_DATABASE_CONFIG
     // -------------------------------------------------------------
-    if (action === 'CONNECT_OLD_DATABASE') {
+    if (action === 'CONNECT_OLD_DATABASE' || action === 'UPDATE_DATABASE_CONFIG') {
       let existingSchool = null;
       let existingUsers: any[] = [];
       let savedConfig = null;
@@ -298,9 +321,20 @@ export async function POST(req: NextRequest) {
         }
       } catch {}
 
+      // Sync active database to Master Cloud Registry so ALL devices automatically receive it
+      await ConfigManager.setActiveDatabaseConfig({
+        supabaseUrl,
+        supabaseAnonKey,
+        supabaseServiceRoleKey: supabaseServiceRoleKey || undefined,
+        databaseUrl: databaseUrl || undefined,
+        directUrl: directUrl || undefined,
+        isConnected: true,
+        isInitialized: true,
+      });
+
       return NextResponse.json({
         success: true,
-        message: 'បានភ្ជាប់ទៅកាន់ Database ចាស់ដោយជោគជ័យ!',
+        message: 'បានភ្ជាប់ទៅកាន់ Database និង Sync ទៅកាន់គ្រប់ឧបករណ៍ទាំងអស់ដោយជោគជ័យ!',
         existingSchool,
         usersCount: existingUsers.length,
         savedConfig,
