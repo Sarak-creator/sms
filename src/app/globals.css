@@ -2,91 +2,70 @@
 @tailwind components;
 @tailwind utilities;
 
-@layer base {
-  :root {
-    --background: 210 40% 98%;
-    --foreground: 222 47% 11%;
-    --card: 0 0% 100%;
-    --card-foreground: 222 47% 11%;
-    --primary: 221.2 83.2% 53.3%;
-    --primary-foreground: 210 40% 98%;
-    --border: 214.3 31.8% 91.4%;
-  }
-
-  body {
-    font-family: 'Kantumruy Pro', 'Battambang', 'Plus Jakarta Sans', system-ui, sans-serif;
-    color: #1e293b;
-    background-color: #f8fafc;
-    -webkit-font-smoothing: antialiased;
-  }
-
-  h1, h2, h3, h4, h5, h6 {
-    font-family: 'Kantumruy Pro', 'Battambang', sans-serif;
-  }
-
-  * {
-    scrollbar-width: thin;
-    scrollbar-color: rgba(148, 163, 184, 0.45) transparent;
-  }
-
-  *::-webkit-scrollbar {
-    width: 5px;
-    height: 5px;
-  }
-
-  *::-webkit-scrollbar-track {
-    background: transparent;
-  }
-
-  *::-webkit-scrollbar-thumb {
-    background: rgba(148, 163, 184, 0.4);
-    border-radius: 9999px;
-  }
-
-  *::-webkit-scrollbar-thumb:hover {
-    background: rgba(100, 116, 139, 0.7);
-  }
-
-  *::-webkit-scrollbar-corner {
-    background: transparent;
-  }
+:root {
+  --background: 210 40% 98%;
+  --foreground: 222 47% 11%;
+  --card: 0 0% 100%;
+  --card-foreground: 222 47% 11%;
+  --primary: 221.2 83.2% 53.3%;
+  --primary-foreground: 210 40% 98%;
+  --border: 214.3 31.8% 91.4%;
 }
 
-@layer utilities {
-  .slim-scrollbar {
-    scrollbar-width: thin;
-    scrollbar-color: rgba(148, 163, 184, 0.45) transparent;
-  }
-
-  .slim-scrollbar::-webkit-scrollbar {
-    width: 4px;
-    height: 4px;
-  }
-
-  .slim-scrollbar::-webkit-scrollbar-thumb {
-    background: rgba(148, 163, 184, 0.4);
-    border-radius: 9999px;
-  }
-
-  .slim-scrollbar::-webkit-scrollbar-thumb:hover {
-    background: rgba(100, 116, 139, 0.7);
-  }
-
-  .no-scrollbar::-webkit-scrollbar {
-    display: none;
-  }
-
-  .no-scrollbar {
-    -ms-overflow-style: none;
-    scrollbar-width: none;
-  }
+body {
+  font-family: 'Kantumruy Pro', 'Battambang', 'Plus Jakarta Sans', system-ui, sans-serif;
+  color: #1e293b;
+  background-color: #f8fafc;
+  -webkit-font-smoothing: antialiased;
 }
 
-/* Print Styles for MoEYS Official Reports */
+h1, h2, h3, h4, h5, h6 {
+  font-family: 'Kantumruy Pro', 'Battambang', sans-serif;
+}
+
+/* Custom Scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+.slim-scrollbar::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+
+.slim-scrollbar::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 9999px;
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* Print Styles */
 @media print {
   body {
-    background: white !important;
-    color: black !important;
+    background: #ffffff !important;
+    color: #000000 !important;
     font-size: 11pt !important;
   }
 
@@ -109,7 +88,7 @@
   }
 
   th, td {
-    border: 1px solid #333 !important;
+    border: 1px solid #333333 !important;
     padding: 4px 6px !important;
   }
 }
