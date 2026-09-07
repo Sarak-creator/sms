@@ -20,6 +20,7 @@ import {
   GraduationCap,
   BookOpen,
   Eye,
+  EyeOff,
   CheckCircle2,
   AlertTriangle,
   X,
@@ -97,6 +98,8 @@ export default function UsersPage() {
   const [isFormModalOpen, setIsFormModalOpen] = useState(false);
   const [formMode, setFormMode] = useState<'ADD' | 'EDIT'>('ADD');
   const [formData, setFormData] = useState<UserData>(EMPTY_USER_FORM);
+  const [userPassword, setUserPassword] = useState('');
+  const [showUserPassword, setShowUserPassword] = useState(false);
   const [formError, setFormError] = useState('');
 
   // Delete Confirmation State
@@ -179,6 +182,8 @@ export default function UsersPage() {
       avatarColor: randomColor,
       permissions: { ...ROLE_DEFAULT_PERMISSIONS.SUBJECT_TEACHER },
     });
+    setUserPassword('');
+    setShowUserPassword(false);
     setFormError('');
     setIsFormModalOpen(true);
   };
@@ -187,6 +192,8 @@ export default function UsersPage() {
   const handleOpenEdit = (user: UserData) => {
     setFormMode('EDIT');
     setFormData({ ...user, permissions: { ...user.permissions } });
+    setUserPassword(user.passwordHash || '');
+    setShowUserPassword(false);
     setFormError('');
     setIsFormModalOpen(true);
   };
@@ -275,14 +282,22 @@ export default function UsersPage() {
         );
         return;
       }
-      addUser(formData);
+      const dataToSave: UserData = {
+        ...formData,
+        passwordHash: userPassword.trim() ? userPassword.trim() : '123456',
+      };
+      addUser(dataToSave);
       showToast(
         language === 'km'
           ? `បានបង្កើតគណនី "${formData.khmerName}" ដោយជោគជ័យ!`
           : `User "${formData.latinName}" created successfully!`
       );
     } else {
-      updateUser(formData.id, formData);
+      const dataToUpdate: UserData = {
+        ...formData,
+        ...(userPassword.trim() ? { passwordHash: userPassword.trim() } : {}),
+      };
+      updateUser(formData.id, dataToUpdate);
       showToast(
         language === 'km'
           ? `បានកែសម្រួលគណនី និងសិទ្ធិរបស់ "${formData.khmerName}" ដោយជោគជ័យ!`
@@ -805,8 +820,8 @@ export default function UsersPage() {
                 </div>
               </div>
 
-              {/* Username & Email & Phone */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              {/* Username & Email */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block text-slate-700 font-bold mb-1">
                     {language === 'km' ? 'ឈ្មោះគណនី (Username) *' : 'Username *'}
@@ -833,6 +848,36 @@ export default function UsersPage() {
                     className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
                     placeholder="vandy@school.gov.kh"
                   />
+                </div>
+              </div>
+
+              {/* Password & Phone Number */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-slate-700 font-bold flex items-center gap-1.5">
+                      <Lock className="w-3.5 h-3.5 text-blue-600" />
+                      <span>{t('password')} {formMode === 'ADD' ? '*' : language === 'km' ? '(ទុកទទេបើមិនប្តូរ)' : '(Optional)'}</span>
+                    </label>
+                  </div>
+                  <div className="relative">
+                    <input
+                      type={showUserPassword ? 'text' : 'password'}
+                      value={userPassword}
+                      onChange={(e) => setUserPassword(e.target.value)}
+                      required={formMode === 'ADD'}
+                      placeholder={formMode === 'ADD' ? '••••••••' : language === 'km' ? 'បញ្ចូលពាក្យសម្ងាត់ថ្មី...' : 'New password...'}
+                      className="w-full pl-3 pr-10 py-2 bg-slate-50 border border-slate-200 rounded-xl font-mono text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowUserPassword(!showUserPassword)}
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer p-1"
+                      aria-label="Toggle password visibility"
+                    >
+                      {showUserPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
                 </div>
 
                 <div>
