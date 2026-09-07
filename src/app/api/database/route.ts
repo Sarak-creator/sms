@@ -4,6 +4,9 @@ import { Client } from 'pg';
 import { SUPABASE_SCHEMA_SQL } from '@/lib/supabase/schemaSql';
 import { SEED_SPECIALIZATIONS } from '@/lib/schoolData';
 
+export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
+
 // Helper function to execute SQL via PostgreSQL client
 async function executeSqlViaPg(connectionString: string, sql: string) {
   const client = new Client({
