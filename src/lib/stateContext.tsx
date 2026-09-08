@@ -64,7 +64,13 @@ import {
   seedDefaultHolidaysToSupabase,
 } from './supabase/syncService';
 import { isSupabaseConfigured, fetchServerDatabaseConfig } from './supabase/client';
-import { HolidayData, OFFICIAL_CAMBODIA_HOLIDAYS_2024_2025 } from './holidayData';
+import {
+  HolidayData,
+  DEFAULT_CAMBODIA_HOLIDAYS,
+  OFFICIAL_CAMBODIA_HOLIDAYS_2024_2025,
+  ensureHolidaysForYear,
+  ensureHolidaysForCurrentAndNextYears,
+} from './holidayData';
 
 export interface ScoreState {
   monthly: number[]; // 5 months per semester
@@ -236,8 +242,11 @@ interface SchoolContextType {
   // Holidays & Academic Calendar Events
   holidays: HolidayData[];
   addHoliday: (holiday: HolidayData) => void;
+  bulkAddHolidays: (holidays: HolidayData[]) => void;
   updateHoliday: (id: string, updated: Partial<HolidayData>) => void;
   deleteHoliday: (id: string) => void;
+  autoUpdateHolidaysForYear: (targetYear: number) => number;
+  autoUpdateHolidaysThisAndNextYears: () => number;
 
   // Export & Print helper
   exportToExcel: (filename: string, tableData: any[]) => void;
@@ -300,7 +309,23 @@ export function SchoolProvider({ children }: { children: React.ReactNode }) {
   const [scores, setScores] = useState<Record<string, Record<string, ScoreState>>>(() => ({}));
   const [attendance, setAttendance] = useState<Record<string, 'PRESENT' | 'ABSENT_PERMISSION' | 'ABSENT_NO_PERMISSION' | 'LATE'>>(() => ({}));
   const [disabledColumnsMap, setDisabledColumnsMap] = useState<Record<string, string[]>>({});
-  const [holidays, setHolidays] = useState<HolidayData[]>(() => OFFICIAL_CAMBODIA_HOLIDAYS_2024_2025);
+  const [holidays, setHolidays] = useState<HolidayData[]>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const saved = localStorage.getItem('moeys_sms_holidays');
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            const { updatedHolidays } = ensureHolidaysForCurrentAndNextYears(parsed);
+            return updatedHolidays;
+          }
+        }
+      } catch (e) {
+        console.warn('Error reading saved holidays from localStorage:', e);
+      }
+    }
+    return DEFAULT_CAMBODIA_HOLIDAYS;
+  });
 
   // Monthly Competency Scores Map: monthIndex -> studentId -> { [colKey]: score }
   const [monthlyScoresMap, setMonthlyScoresMap] = useState<Record<number, Record<string, Record<string, number>>>>(
@@ -378,9 +403,20 @@ export function SchoolProvider({ children }: { children: React.ReactNode }) {
         if (data.semesterExamScoresMap) setSemesterExamScoresMap(data.semesterExamScoresMap);
         if (data.attendance) setAttendance(data.attendance);
         if (data.holidays && data.holidays.length > 0) {
-          setHolidays(data.holidays);
+          const { updatedHolidays, addedCount } = ensureHolidaysForCurrentAndNextYears(data.holidays);
+          setHolidays(updatedHolidays);
+          if (typeof window !== 'undefined') {
+            localStorage.setItem('moeys_sms_holidays', JSON.stringify(updatedHolidays));
+          }
+          if (addedCount > 0 && isSupabaseConfigured()) {
+            seedDefaultHolidaysToSupabase(updatedHolidays);
+          }
         } else if (isSupabaseConfigured()) {
-          seedDefaultHolidaysToSupabase(OFFICIAL_CAMBODIA_HOLIDAYS_2024_2025);
+          seedDefaultHolidaysToSupabase(DEFAULT_CAMBODIA_HOLIDAYS);
+          setHolidays(DEFAULT_CAMBODIA_HOLIDAYS);
+          if (typeof window !== 'undefined') {
+            localStorage.setItem('moeys_sms_holidays', JSON.stringify(DEFAULT_CAMBODIA_HOLIDAYS));
+          }
         }
       }
     } catch (err) {
@@ -625,27 +661,86 @@ export function SchoolProvider({ children }: { children: React.ReactNode }) {
     setHolidays((prev) => {
       const next = [...prev.filter((h) => h.id !== newHoliday.id), newHoliday];
       next.sort((a, b) => a.dateFrom.localeCompare(b.dateFrom));
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('moeys_sms_holidays', JSON.stringify(next));
+      }
       return next;
     });
     syncHolidayToSupabase(newHoliday);
   };
 
+  const bulkAddHolidays = (newHolidays: HolidayData[]) => {
+    setHolidays((prev) => {
+      const map = new Map<string, HolidayData>();
+      prev.forEach((h) => map.set(h.id, h));
+      newHolidays.forEach((h) => map.set(h.id, h));
+      const next = Array.from(map.values()).sort((a, b) => a.dateFrom.localeCompare(b.dateFrom));
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('moeys_sms_holidays', JSON.stringify(next));
+      }
+      return next;
+    });
+    seedDefaultHolidaysToSupabase(newHolidays);
+  };
+
   const updateHoliday = (id: string, updated: Partial<HolidayData>) => {
-    setHolidays((prev) =>
-      prev.map((h) => {
+    setHolidays((prev) => {
+      const next = prev.map((h) => {
         if (h.id === id) {
-          const next = { ...h, ...updated };
-          syncHolidayToSupabase(next);
-          return next;
+          const item = { ...h, ...updated };
+          syncHolidayToSupabase(item);
+          return item;
         }
         return h;
-      })
-    );
+      });
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('moeys_sms_holidays', JSON.stringify(next));
+      }
+      return next;
+    });
   };
 
   const deleteHoliday = (id: string) => {
-    setHolidays((prev) => prev.filter((h) => h.id !== id));
+    setHolidays((prev) => {
+      const next = prev.filter((h) => h.id !== id);
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('moeys_sms_holidays', JSON.stringify(next));
+      }
+      return next;
+    });
     deleteHolidayFromSupabase(id);
+  };
+
+  const autoUpdateHolidaysForYear = (targetYear: number): number => {
+    let count = 0;
+    setHolidays((prev) => {
+      const res = ensureHolidaysForYear(prev, targetYear);
+      count = res.addedCount;
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('moeys_sms_holidays', JSON.stringify(res.updatedHolidays));
+      }
+      if (res.addedCount > 0 && isSupabaseConfigured()) {
+        seedDefaultHolidaysToSupabase(res.updatedHolidays);
+      }
+      return res.updatedHolidays;
+    });
+    return count;
+  };
+
+  const autoUpdateHolidaysThisAndNextYears = (): number => {
+    let count = 0;
+    setHolidays((prev) => {
+      const res = ensureHolidaysForCurrentAndNextYears(prev);
+      count = res.addedCount;
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('moeys_sms_holidays', JSON.stringify(res.updatedHolidays));
+      }
+      if (res.addedCount > 0 && isSupabaseConfigured()) {
+        seedDefaultHolidaysToSupabase(res.updatedHolidays);
+      }
+      return res.updatedHolidays;
+    });
+    return count;
   };
 
   // School profile & system configurations update with live Supabase persistence
@@ -785,6 +880,7 @@ export function SchoolProvider({ children }: { children: React.ReactNode }) {
       customAnnualDomainGradesMap,
       semesterRemarksMap,
       annualRemarksMap,
+      holidays,
     };
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
@@ -820,6 +916,12 @@ export function SchoolProvider({ children }: { children: React.ReactNode }) {
       if (jsonData.customAnnualDomainGradesMap) setCustomAnnualDomainGradesMap(jsonData.customAnnualDomainGradesMap);
       if (jsonData.semesterRemarksMap) setSemesterRemarksMap(jsonData.semesterRemarksMap);
       if (jsonData.annualRemarksMap) setAnnualRemarksMap(jsonData.annualRemarksMap);
+      if (jsonData.holidays && Array.isArray(jsonData.holidays)) {
+        setHolidays(jsonData.holidays);
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('moeys_sms_holidays', JSON.stringify(jsonData.holidays));
+        }
+      }
       return true;
     } catch (e) {
       console.error('Failed to import system data:', e);
@@ -1557,8 +1659,11 @@ export function SchoolProvider({ children }: { children: React.ReactNode }) {
         updateClassDivisor,
         holidays,
         addHoliday,
+        bulkAddHolidays,
         updateHoliday,
         deleteHoliday,
+        autoUpdateHolidaysForYear,
+        autoUpdateHolidaysThisAndNextYears,
         exportToExcel,
         exportSystemData,
         importSystemData,

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { SUPABASE_SCHEMA_SQL } from '@/lib/supabase/schemaSql';
 import { SEED_SPECIALIZATIONS } from '@/lib/schoolData';
-import { OFFICIAL_CAMBODIA_HOLIDAYS_2024_2025 } from '@/lib/holidayData';
+import { DEFAULT_CAMBODIA_HOLIDAYS } from '@/lib/holidayData';
 
 import defaultDbConfig from '@/config/database.json';
 import { ConfigManager } from '@/lib/config-manager';
@@ -183,7 +183,7 @@ export async function POST(req: NextRequest) {
 
       // 4. Seed Official Cambodian Public Holidays & MoEYS Academic Calendar
       try {
-        const holidaysToInsert = OFFICIAL_CAMBODIA_HOLIDAYS_2024_2025.map((h) => ({
+        const holidaysToInsert = DEFAULT_CAMBODIA_HOLIDAYS.map((h) => ({
           id: h.id,
           title_khmer: h.titleKhmer,
           title_english: h.titleEnglish || null,

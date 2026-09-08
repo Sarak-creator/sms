@@ -26,9 +26,20 @@ import {
   GraduationCap,
   Bell,
   BookOpen,
+  ChevronDown,
+  RefreshCw,
+  Moon,
+  Layers,
 } from 'lucide-react';
 import { useSchool } from '@/lib/stateContext';
-import { HolidayData, HolidayType, OFFICIAL_CAMBODIA_HOLIDAYS_2024_2025 } from '@/lib/holidayData';
+import {
+  HolidayData,
+  HolidayType,
+  toKhmerNumber,
+  getBuddhistYear,
+  formatAcademicYear,
+  generateCambodiaHolidaysForYear,
+} from '@/lib/holidayData';
 
 const KHMER_MONTH_NAMES = [
   'មករា', 'កុម្ភៈ', 'មីនា', 'មេសា', 'ឧសភា', 'មិថុនា',
@@ -37,12 +48,17 @@ const KHMER_MONTH_NAMES = [
 
 const KHMER_DAY_NAMES = ['អាទិត្យ', 'ច័ន្ទ', 'អង្គារ', 'ពុធ', 'ព្រហស្បតិ៍', 'សុក្រ', 'សៅរ៍'];
 
+const AVAILABLE_YEARS = [2024, 2025, 2026, 2027, 2028, 2029, 2030, 2031, 2032];
+
 export default function CalendarPage() {
   const {
     holidays,
     addHoliday,
+    bulkAddHolidays,
     updateHoliday,
     deleteHoliday,
+    autoUpdateHolidaysForYear,
+    autoUpdateHolidaysThisAndNextYears,
     school,
     language,
     currentUser,
@@ -59,14 +75,17 @@ export default function CalendarPage() {
 
   // Filter & Search state
   const [typeFilter, setTypeFilter] = useState<'ALL' | HolidayType>('ALL');
+  const [yearFilter, setYearFilter] = useState<'ALL' | 'VIEW_YEAR' | number>('VIEW_YEAR');
   const [searchQuery, setSearchQuery] = useState('');
 
   // Modal states
   const [modalOpen, setModalOpen] = useState(false);
+  const [autoUpdateModalOpen, setAutoUpdateModalOpen] = useState(false);
   const [editingHoliday, setEditingHoliday] = useState<HolidayData | null>(null);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [resetConfirmOpen, setResetConfirmOpen] = useState(false);
   const [toastMsg, setToastMsg] = useState<string | null>(null);
+  const [isUpdatingHolidays, setIsUpdatingHolidays] = useState(false);
 
   // Form State
   const [formData, setFormData] = useState<Omit<HolidayData, 'id'>>({
@@ -77,15 +96,15 @@ export default function CalendarPage() {
     type: 'PUBLIC_HOLIDAY',
     isDayOff: true,
     description: '',
-    academicYear: school.academicYear || '២០២៤ - ២០២៥',
+    academicYear: school.academicYear || formatAcademicYear(today.getFullYear()),
   });
 
   const showToast = (msg: string) => {
     setToastMsg(msg);
-    setTimeout(() => setToastMsg(null), 3000);
+    setTimeout(() => setToastMsg(null), 3500);
   };
 
-  // Month navigation
+  // Month & Year navigation
   const prevMonth = () => {
     if (currentMonth === 0) {
       setCurrentMonth(11);
@@ -105,11 +124,22 @@ export default function CalendarPage() {
   };
 
   const goToToday = () => {
-    setCurrentYear(today.getFullYear());
-    setCurrentMonth(today.getMonth());
+    const now = new Date();
+    setCurrentYear(now.getFullYear());
+    setCurrentMonth(now.getMonth());
     setSelectedDateStr(
-      `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
+      `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
     );
+  };
+
+  const handleYearChange = (year: number) => {
+    setCurrentYear(year);
+    setSelectedDateStr(`${year}-${String(currentMonth + 1).padStart(2, '0')}-01`);
+  };
+
+  const handleMonthChange = (month: number) => {
+    setCurrentMonth(month);
+    setSelectedDateStr(`${currentYear}-${String(month + 1).padStart(2, '0')}-01`);
   };
 
   // Calendar Grid Days Calculation
@@ -184,31 +214,50 @@ export default function CalendarPage() {
     return holidays.filter((h) => dateStr >= h.dateFrom && dateStr <= h.dateTo);
   };
 
+  // Count holidays in the currently viewed year
+  const currentViewYearHolidaysCount = useMemo(() => {
+    return holidays.filter((h) => h.dateFrom.startsWith(String(currentYear))).length;
+  }, [holidays, currentYear]);
+
   // Filtered list of holidays for display
   const filteredHolidays = useMemo(() => {
     return holidays
       .filter((h) => {
+        // Year filter
+        if (yearFilter === 'VIEW_YEAR') {
+          if (!h.dateFrom.startsWith(String(currentYear))) return false;
+        } else if (typeof yearFilter === 'number') {
+          if (!h.dateFrom.startsWith(String(yearFilter))) return false;
+        }
+
+        // Type filter
         if (typeFilter !== 'ALL' && h.type !== typeFilter) return false;
+
+        // Search query
         if (searchQuery.trim()) {
           const q = searchQuery.toLowerCase();
           const matchKhmer = h.titleKhmer.toLowerCase().includes(q);
           const matchEng = (h.titleEnglish || '').toLowerCase().includes(q);
           const matchDesc = (h.description || '').toLowerCase().includes(q);
-          if (!matchKhmer && !matchEng && !matchDesc) return false;
+          const matchLunar = (h.lunarDetail || '').toLowerCase().includes(q);
+          if (!matchKhmer && !matchEng && !matchDesc && !matchLunar) return false;
         }
         return true;
       })
       .sort((a, b) => a.dateFrom.localeCompare(b.dateFrom));
-  }, [holidays, typeFilter, searchQuery]);
+  }, [holidays, typeFilter, yearFilter, currentYear, searchQuery]);
 
   // Calculate upcoming events and stats
   const stats = useMemo(() => {
     const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
-    const publicHolidaysCount = holidays.filter((h) => h.isDayOff).length;
-    const examsCount = holidays.filter((h) => h.type === 'EXAM_PERIOD').length;
-    const vacationsCount = holidays.filter((h) => h.type === 'VACATION').length;
+    const yearPrefix = String(currentYear);
+    const viewYearHolidays = holidays.filter((h) => h.dateFrom.startsWith(yearPrefix));
 
-    // Find next upcoming holiday / event
+    const publicHolidaysCount = viewYearHolidays.filter((h) => h.isDayOff).length;
+    const examsCount = viewYearHolidays.filter((h) => h.type === 'EXAM_PERIOD').length;
+    const vacationsCount = viewYearHolidays.filter((h) => h.type === 'VACATION').length;
+
+    // Find next upcoming holiday / event (from today)
     const upcoming = holidays
       .filter((h) => h.dateTo >= todayStr)
       .sort((a, b) => a.dateFrom.localeCompare(b.dateFrom))[0];
@@ -227,7 +276,34 @@ export default function CalendarPage() {
       upcoming,
       daysUntilUpcoming,
     };
-  }, [holidays]);
+  }, [holidays, currentYear]);
+
+  // Auto-Update Action Handlers
+  const handleAutoUpdateThisYear = () => {
+    setIsUpdatingHolidays(true);
+    const thisYear = new Date().getFullYear();
+    const count = autoUpdateHolidaysForYear(thisYear);
+    setIsUpdatingHolidays(false);
+    setAutoUpdateModalOpen(false);
+    showToast(`បានធ្វើបច្ចុប្បន្នភាពស្វ័យប្រវត្តិនៃឆ្នាំ ${toKhmerNumber(thisYear)} ជោគជ័យ (${count} ព្រឹត្តិការណ៍ថ្មី)!`);
+  };
+
+  const handleAutoUpdateThisAndNextYears = () => {
+    setIsUpdatingHolidays(true);
+    const count = autoUpdateHolidaysThisAndNextYears();
+    setIsUpdatingHolidays(false);
+    setAutoUpdateModalOpen(false);
+    const thisYear = new Date().getFullYear();
+    showToast(`បានធ្វើបច្ចុប្បន្នភាពស្វ័យប្រវត្តិ ឆ្នាំ ${toKhmerNumber(thisYear)} និងបណ្តាឆ្នាំបន្ទាប់ជោគជ័យ (${count} ព្រឹត្តិការណ៍ថ្មី)!`);
+  };
+
+  const handleAutoUpdateCurrentViewYear = () => {
+    setIsUpdatingHolidays(true);
+    const count = autoUpdateHolidaysForYear(currentYear);
+    setIsUpdatingHolidays(false);
+    setAutoUpdateModalOpen(false);
+    showToast(`បានបង្កើតថ្ងៃឈប់សម្រាក និងប្រតិទិន MoEYS ឆ្នាំ ${toKhmerNumber(currentYear)} ជោគជ័យ (${count} ព្រឹត្តិការណ៍)!`);
+  };
 
   // Handle open Add Modal
   const handleOpenAdd = (prefillDate?: string) => {
@@ -241,7 +317,7 @@ export default function CalendarPage() {
       type: 'PUBLIC_HOLIDAY',
       isDayOff: true,
       description: '',
-      academicYear: school.academicYear || '២០២៤ - ២០២៥',
+      academicYear: school.academicYear || formatAcademicYear(currentYear),
     });
     setModalOpen(true);
   };
@@ -257,7 +333,7 @@ export default function CalendarPage() {
       type: h.type,
       isDayOff: h.isDayOff,
       description: h.description || '',
-      academicYear: h.academicYear || school.academicYear || '២០២៤ - ២០២៥',
+      academicYear: h.academicYear || school.academicYear || formatAcademicYear(currentYear),
     });
     setModalOpen(true);
   };
@@ -300,11 +376,9 @@ export default function CalendarPage() {
 
   // Handle Reset to Default MoEYS Holidays
   const handleResetToMoEYS = () => {
-    OFFICIAL_CAMBODIA_HOLIDAYS_2024_2025.forEach((h) => {
-      addHoliday(h);
-    });
+    const count = autoUpdateHolidaysThisAndNextYears();
     setResetConfirmOpen(false);
-    showToast('ស្តារទិន្នន័យប្រតិទិន & ថ្ងៃឈប់សម្រាកស្តង់ដារ MoEYS ជោគជ័យ!');
+    showToast(`បានស្តារ និងធ្វើបច្ចុប្បន្នភាពទិន្នន័យប្រតិទិន MoEYS ជោគជ័យ (${count} ព្រឹត្តិការណ៍ថ្មី)!`);
   };
 
   // Type badge styling
@@ -352,23 +426,34 @@ export default function CalendarPage() {
       {/* 🧭 Top Banner & Title */}
       <div className="bg-white p-5 rounded-2xl border border-slate-200/90 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <div className="w-9 h-9 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center font-bold shadow-xs">
               <CalendarIcon className="w-5 h-5" />
             </div>
             <h1 className="text-lg font-black text-slate-900">
               {language === 'km' ? 'ប្រតិទិន និងថ្ងៃឈប់សម្រាកផ្លូវការ' : 'Academic Calendar & Holidays'}
             </h1>
-            <span className="px-2.5 py-0.5 text-[10px] bg-indigo-50 text-indigo-700 border border-indigo-200 font-bold rounded-full">
-              MoEYS Cambodia
+            <span className="px-2.5 py-0.5 text-[10px] bg-indigo-50 text-indigo-700 border border-indigo-200 font-bold rounded-full flex items-center gap-1">
+              <Sparkles className="w-3 h-3 text-indigo-500" />
+              <span>MoEYS Cambodia • ស្វ័យប្រវត្តិ</span>
             </span>
           </div>
           <p className="text-xs text-slate-500 mt-1">
-            គ្រប់គ្រងថ្ងៃឈប់សម្រាកបុណ្យជាតិ ពិធីបុណ្យប្រពៃណី ការប្រឡងឆមាស និងវិស្សមកាលសិក្សាឆ្នាំ {school.academicYear || '២០២៤ - ២០២៥'}
+            គ្រប់គ្រងថ្ងៃឈប់សម្រាកបុណ្យជាតិ ពិធីបុណ្យប្រពៃណី ការប្រឡងឆមាស និងវិស្សមកាលសិក្សា ឆ្នាំ {toKhmerNumber(currentYear)} (ព.ស. {toKhmerNumber(getBuddhistYear(currentYear))})
           </p>
         </div>
 
         <div className="flex items-center gap-2 flex-wrap">
+          {/* 🚀 Primary Auto-Update Button */}
+          <button
+            onClick={() => setAutoUpdateModalOpen(true)}
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-700 hover:from-blue-700 hover:to-indigo-700 text-white text-xs font-bold rounded-xl transition-all shadow-sm cursor-pointer"
+            title="ធ្វើបច្ចុប្បន្នភាពស្វ័យប្រវត្តិនៃថ្ងៃឈប់សម្រាកសម្រាប់ឆ្នាំនេះ និងឆ្នាំបន្ទាប់ៗ"
+          >
+            <Sparkles className="w-4 h-4 text-amber-300 animate-pulse" />
+            <span>ធ្វើបច្ចុប្បន្នភាពស្វ័យប្រវត្តិ</span>
+          </button>
+
           <button
             onClick={() => setResetConfirmOpen(true)}
             className="inline-flex items-center gap-1.5 px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition-all cursor-pointer"
@@ -380,10 +465,10 @@ export default function CalendarPage() {
 
           <button
             onClick={() => handleOpenAdd()}
-            className="inline-flex items-center gap-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl transition-all shadow-xs cursor-pointer"
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-slate-900 hover:bg-black text-white text-xs font-bold rounded-xl transition-all shadow-xs cursor-pointer"
           >
             <Plus className="w-4 h-4" />
-            <span>បន្ថែមថ្ងៃឈប់សម្រាក/ព្រឹត្តិការណ៍</span>
+            <span>បន្ថែមព្រឹត្តិការណ៍</span>
           </button>
         </div>
       </div>
@@ -435,7 +520,9 @@ export default function CalendarPage() {
         {/* Total Public Holidays */}
         <div className="bg-white p-4 rounded-2xl border border-slate-200/90 shadow-xs flex items-center justify-between">
           <div>
-            <div className="text-xs font-bold text-slate-500">ថ្ងៃឈប់សម្រាកផ្លូវការ</div>
+            <div className="text-xs font-bold text-slate-500">
+              ថ្ងៃឈប់សម្រាកផ្លូវការ ({toKhmerNumber(currentYear)})
+            </div>
             <div className="text-2xl font-black text-rose-600 font-mono mt-1">
               {stats.publicHolidaysCount}
             </div>
@@ -449,11 +536,13 @@ export default function CalendarPage() {
         {/* Exam Periods */}
         <div className="bg-white p-4 rounded-2xl border border-slate-200/90 shadow-xs flex items-center justify-between">
           <div>
-            <div className="text-xs font-bold text-slate-500">សម័យប្រឡងផ្លូវការ</div>
+            <div className="text-xs font-bold text-slate-500">
+              សម័យប្រឡងផ្លូវការ ({toKhmerNumber(currentYear)})
+            </div>
             <div className="text-2xl font-black text-amber-600 font-mono mt-1">
               {stats.examsCount}
             </div>
-            <div className="text-[10px] text-slate-500 mt-0.5">ឆមាសទី ១ & ឆមាសទី ២</div>
+            <div className="text-[10px] text-slate-500 mt-0.5">ឆមាសទី១-២, ឌីប្លូម, បាក់ឌុប</div>
           </div>
           <div className="w-11 h-11 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center font-bold">
             <Award className="w-5 h-5" />
@@ -463,11 +552,13 @@ export default function CalendarPage() {
         {/* Vacations */}
         <div className="bg-white p-4 rounded-2xl border border-slate-200/90 shadow-xs flex items-center justify-between">
           <div>
-            <div className="text-xs font-bold text-slate-500">វិស្សមកាលសិក្សា</div>
+            <div className="text-xs font-bold text-slate-500">
+              វិស្សមកាលសិក្សា ({toKhmerNumber(currentYear)})
+            </div>
             <div className="text-2xl font-black text-sky-600 font-mono mt-1">
               {stats.vacationsCount}
             </div>
-            <div className="text-[10px] text-slate-500 mt-0.5">វិស្សមកាលតូច & ធំ</div>
+            <div className="text-[10px] text-slate-500 mt-0.5">វិស្សមកាលតូច & ធំ MoEYS</div>
           </div>
           <div className="w-11 h-11 rounded-xl bg-sky-50 text-sky-600 flex items-center justify-center font-bold">
             <SunMedium className="w-5 h-5" />
@@ -479,23 +570,48 @@ export default function CalendarPage() {
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         {/* 🗓️ Left Column: Interactive Month Calendar (7 cols) */}
         <div className="lg:col-span-7 bg-white p-5 rounded-2xl border border-slate-200/90 shadow-xs space-y-4">
-          {/* Calendar Month Header & Navigation */}
-          <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-            <div className="flex items-center gap-2">
-              <span className="text-base font-black text-slate-900">
-                ខែ{KHMER_MONTH_NAMES[currentMonth]} ឆ្នាំ {currentYear}
-              </span>
-              <span className="text-xs text-slate-400 font-mono">
-                ({new Date(currentYear, currentMonth).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })})
+          {/* Calendar Month & Year Header Controls */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-3">
+            <div className="flex items-center gap-2 flex-wrap">
+              {/* Month Dropdown */}
+              <select
+                value={currentMonth}
+                onChange={(e) => handleMonthChange(Number(e.target.value))}
+                className="px-2.5 py-1.5 bg-slate-50 hover:bg-slate-100 text-slate-900 font-black text-sm rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
+              >
+                {KHMER_MONTH_NAMES.map((name, idx) => (
+                  <option key={idx} value={idx}>
+                    ខែ {name}
+                  </option>
+                ))}
+              </select>
+
+              {/* Year Dropdown with Buddhist Era */}
+              <select
+                value={currentYear}
+                onChange={(e) => handleYearChange(Number(e.target.value))}
+                className="px-2.5 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-900 font-black text-sm rounded-xl border border-blue-200 focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
+              >
+                {AVAILABLE_YEARS.map((y) => (
+                  <option key={y} value={y}>
+                    ឆ្នាំ {toKhmerNumber(y)} (ព.ស. {toKhmerNumber(getBuddhistYear(y))})
+                  </option>
+                ))}
+              </select>
+
+              {/* Holiday count badge for active year */}
+              <span className="px-2 py-0.5 text-[10px] font-mono font-bold bg-slate-100 text-slate-600 rounded-md">
+                {currentViewYearHolidaysCount} ព្រឹត្តិការណ៍
               </span>
             </div>
 
-            <div className="flex items-center gap-1.5">
+            {/* Previous, Next, Today Buttons */}
+            <div className="flex items-center gap-1.5 self-end sm:self-auto">
               <button
                 onClick={goToToday}
                 className="px-2.5 py-1 text-[11px] font-bold bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg transition-colors cursor-pointer"
               >
-                ថ្ងៃនេះ (Today)
+                ថ្ងៃនេះ
               </button>
               <button
                 onClick={prevMonth}
@@ -513,6 +629,24 @@ export default function CalendarPage() {
               </button>
             </div>
           </div>
+
+          {/* Missing Holidays Banner for selected year (Auto-generate suggestion) */}
+          {currentViewYearHolidaysCount === 0 && (
+            <div className="bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200 p-3 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs text-amber-900">
+              <div className="flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
+                <span>ពុំទាន់មានទិន្នន័យថ្ងៃឈប់សម្រាកសម្រាប់ឆ្នាំ {toKhmerNumber(currentYear)} នៅឡើយទេ។</span>
+              </div>
+              <button
+                onClick={handleAutoUpdateCurrentViewYear}
+                disabled={isUpdatingHolidays}
+                className="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-lg transition-colors shrink-0 flex items-center justify-center gap-1 shadow-xs cursor-pointer"
+              >
+                <Sparkles className="w-3.5 h-3.5" />
+                <span>បង្កើតស្វ័យប្រវត្តិនៃឆ្នាំ {toKhmerNumber(currentYear)}</span>
+              </button>
+            </div>
+          )}
 
           {/* Days of the Week Header */}
           <div className="grid grid-cols-7 gap-1 text-center font-bold text-[11px] text-slate-500 py-1">
@@ -548,35 +682,38 @@ export default function CalendarPage() {
                 >
                   <div className="flex items-center justify-between">
                     <span
-                      className={`text-xs font-mono font-bold w-5 h-5 flex items-center justify-center rounded-full ${
+                      className={`text-xs font-bold ${
                         item.isToday
-                          ? 'bg-blue-600 text-white shadow-xs'
-                          : idx % 7 === 0
-                          ? 'text-rose-600'
+                          ? 'w-5 h-5 rounded-full bg-amber-500 text-white flex items-center justify-center text-[10px]'
+                          : hasHoliday
+                          ? 'text-rose-600 font-black'
                           : 'text-slate-800'
                       }`}
                     >
                       {item.day}
                     </span>
 
-                    {dayEvents.length > 0 && (
-                      <span className="w-2 h-2 rounded-full shrink-0 bg-blue-600 animate-pulse"></span>
-                    )}
+                    {/* Dot badges */}
+                    <div className="flex items-center gap-0.5">
+                      {hasHoliday && <div className="w-1.5 h-1.5 rounded-full bg-rose-500" title="ថ្ងៃឈប់សម្រាក" />}
+                      {hasExam && <div className="w-1.5 h-1.5 rounded-full bg-amber-500" title="សម័យប្រឡង" />}
+                      {hasVacation && <div className="w-1.5 h-1.5 rounded-full bg-sky-500" title="វិស្សមកាល" />}
+                    </div>
                   </div>
 
-                  {/* Badges / event indicators on day */}
+                  {/* Micro event badge preview inside calendar cell */}
                   <div className="space-y-0.5 mt-1 overflow-hidden">
                     {dayEvents.slice(0, 2).map((ev) => (
                       <div
                         key={ev.id}
-                        className={`text-[9px] font-bold truncate px-1 py-0.5 rounded leading-tight ${
-                          ev.type === 'PUBLIC_HOLIDAY'
-                            ? 'bg-rose-100 text-rose-800'
+                        className={`text-[9px] px-1 py-0.2 rounded font-medium truncate leading-tight ${
+                          ev.isDayOff
+                            ? 'bg-rose-100/80 text-rose-800'
                             : ev.type === 'EXAM_PERIOD'
-                            ? 'bg-amber-100 text-amber-900'
+                            ? 'bg-amber-100/80 text-amber-800'
                             : ev.type === 'VACATION'
-                            ? 'bg-sky-100 text-sky-800'
-                            : 'bg-emerald-100 text-emerald-800'
+                            ? 'bg-sky-100/80 text-sky-800'
+                            : 'bg-slate-100 text-slate-700'
                         }`}
                         title={ev.titleKhmer}
                       >
@@ -584,7 +721,7 @@ export default function CalendarPage() {
                       </div>
                     ))}
                     {dayEvents.length > 2 && (
-                      <div className="text-[8px] text-slate-500 font-bold px-1">
+                      <div className="text-[8px] text-slate-400 font-mono">
                         +{dayEvents.length - 2} ទៀត
                       </div>
                     )}
@@ -594,31 +731,28 @@ export default function CalendarPage() {
             })}
           </div>
 
-          {/* Selected Date Detail Box */}
-          <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200 text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            <div>
-              <div className="font-bold text-slate-900 flex items-center gap-1.5">
-                <CalendarDays className="w-4 h-4 text-blue-600" />
-                <span>កាលបរិច្ឆេទដែលបានជ្រើសរើស៖ <span className="font-mono text-blue-700">{selectedDateStr}</span></span>
-              </div>
-              <div className="text-slate-600 text-[11px] mt-0.5">
-                {getEventsForDate(selectedDateStr).length > 0 ? (
-                  <span>
-                    មានព្រឹត្តិការណ៍ {getEventsForDate(selectedDateStr).length}៖{' '}
-                    <strong>{getEventsForDate(selectedDateStr).map((e) => e.titleKhmer).join(', ')}</strong>
-                  </span>
-                ) : (
-                  <span>មិនមានថ្ងៃឈប់សម្រាក ឬព្រឹត្តិការណ៍ក្នុងថ្ងៃនេះឡើយ</span>
-                )}
-              </div>
+          {/* Selected Date Detail Drawer Bar */}
+          <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+            <div className="flex items-center gap-2">
+              <CalendarCheck className="w-4 h-4 text-blue-600" />
+              <span className="font-bold text-slate-800">
+                កាលបរិច្ឆេទជ្រើសរើស៖ <span className="font-mono text-blue-700 font-bold">{selectedDateStr}</span>
+              </span>
+              {getEventsForDate(selectedDateStr).length > 0 ? (
+                <span className="text-[11px] text-slate-600">
+                  (មាន {getEventsForDate(selectedDateStr).length} ព្រឹត្តិការណ៍)
+                </span>
+              ) : (
+                <span className="text-[11px] text-slate-400 italic">គ្មានកម្មវិធី ឬការឈប់សម្រាកទេ</span>
+              )}
             </div>
 
             <button
               onClick={() => handleOpenAdd(selectedDateStr)}
-              className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-lg transition-colors flex items-center gap-1 shrink-0 cursor-pointer"
+              className="inline-flex items-center gap-1 text-xs font-bold text-blue-600 hover:text-blue-700 transition-colors cursor-pointer self-start sm:self-auto"
             >
               <Plus className="w-3.5 h-3.5" />
-              <span>ថែមក្នុងថ្ងៃនេះ</span>
+              <span>ថែមព្រឹត្តិការណ៍ក្នុងថ្ងៃនេះ</span>
             </button>
           </div>
         </div>
@@ -636,7 +770,34 @@ export default function CalendarPage() {
               </span>
             </div>
 
-            {/* Filter Tabs */}
+            {/* Year Filter Quick Buttons */}
+            <div className="flex items-center gap-1 overflow-x-auto pb-1 text-[11px] font-bold">
+              <span className="text-[10px] text-slate-400 font-medium mr-1 flex items-center gap-0.5">
+                <Layers className="w-3 h-3" />
+                <span>ឆ្នាំ៖</span>
+              </span>
+              {[
+                { label: `ឆ្នាំ ${toKhmerNumber(currentYear)}`, val: 'VIEW_YEAR' },
+                { label: 'ឆ្នាំទាំងអស់', val: 'ALL' },
+                { label: `${toKhmerNumber(2025)}`, val: 2025 },
+                { label: `${toKhmerNumber(2026)}`, val: 2026 },
+                { label: `${toKhmerNumber(2027)}`, val: 2027 },
+              ].map((item) => (
+                <button
+                  key={String(item.val)}
+                  onClick={() => setYearFilter(item.val as any)}
+                  className={`px-2 py-0.5 rounded-md transition-colors shrink-0 cursor-pointer ${
+                    yearFilter === item.val
+                      ? 'bg-blue-600 text-white shadow-xs'
+                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                  }`}
+                >
+                  {item.label}
+                </button>
+              ))}
+            </div>
+
+            {/* Category Filter Tabs */}
             <div className="flex items-center gap-1 overflow-x-auto pb-1 text-[11px] font-bold">
               {[
                 { label: 'ទាំងអស់', val: 'ALL' },
@@ -650,7 +811,7 @@ export default function CalendarPage() {
                   onClick={() => setTypeFilter(tab.val as any)}
                   className={`px-2.5 py-1 rounded-lg transition-colors shrink-0 cursor-pointer ${
                     typeFilter === tab.val
-                      ? 'bg-blue-600 text-white shadow-xs'
+                      ? 'bg-slate-900 text-white shadow-xs'
                       : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                   }`}
                 >
@@ -666,7 +827,7 @@ export default function CalendarPage() {
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="ស្វែងរកថ្ងៃបុណ្យ ឬការប្រឡង..."
+                placeholder="ស្វែងរកថ្ងៃបុណ្យ ការប្រឡង ឬចន្ទគតិ..."
                 className="w-full pl-8 pr-3 py-1.5 bg-slate-50 text-xs rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 font-medium"
               />
             </div>
@@ -674,8 +835,15 @@ export default function CalendarPage() {
             {/* Scrollable Holiday Items List */}
             <div className="space-y-2 max-h-[500px] overflow-y-auto pr-1">
               {filteredHolidays.length === 0 ? (
-                <div className="p-8 text-center text-slate-400 text-xs italic">
-                  មិនមានទិន្នន័យត្រូវគ្នានឹងការស្វែងរកឡើយ
+                <div className="p-8 text-center text-slate-400 text-xs italic space-y-2">
+                  <div>មិនមានទិន្នន័យត្រូវគ្នានឹងការស្វែងរកឡើយ</div>
+                  <button
+                    onClick={handleAutoUpdateCurrentViewYear}
+                    className="inline-flex items-center gap-1 text-xs text-blue-600 hover:text-blue-700 font-bold"
+                  >
+                    <Sparkles className="w-3.5 h-3.5" />
+                    <span>ទាញយកទិន្នន័យស្វ័យប្រវត្តិនៃឆ្នាំ {toKhmerNumber(currentYear)}</span>
+                  </button>
                 </div>
               ) : (
                 filteredHolidays.map((h) => {
@@ -692,6 +860,17 @@ export default function CalendarPage() {
                             {h.isDayOff && (
                               <span className="px-1.5 py-0.2 bg-rose-100 text-rose-800 text-[9px] font-bold rounded">
                                 ឈប់សម្រាក
+                              </span>
+                            )}
+                            {h.lunarDetail && (
+                              <span className="px-1.5 py-0.2 bg-indigo-50 text-indigo-700 text-[9px] font-bold rounded border border-indigo-200/60 flex items-center gap-0.5">
+                                <Moon className="w-2.5 h-2.5 text-indigo-500" />
+                                <span>{h.lunarDetail}</span>
+                              </span>
+                            )}
+                            {h.isAutoGenerated && (
+                              <span className="px-1.5 py-0.2 bg-amber-50 text-amber-700 text-[9px] font-semibold rounded border border-amber-200/50">
+                                MoEYS ស្វ័យប្រវត្តិ
                               </span>
                             )}
                           </div>
@@ -732,12 +911,17 @@ export default function CalendarPage() {
                             {h.dateFrom} {isMultiDay && `~ ${h.dateTo}`}
                           </span>
                         </div>
-                        {h.description && (
-                          <span className="text-[10px] text-slate-500 truncate max-w-[180px]">
-                            {h.description}
+                        {h.academicYear && (
+                          <span className="text-[10px] text-slate-400 font-mono">
+                            ឆ្នាំសិក្សា {h.academicYear}
                           </span>
                         )}
                       </div>
+                      {h.description && (
+                        <p className="text-[10px] text-slate-500 line-clamp-2 pt-0.5">
+                          {h.description}
+                        </p>
+                      )}
                     </div>
                   );
                 })
@@ -746,6 +930,113 @@ export default function CalendarPage() {
           </div>
         </div>
       </div>
+
+      {/* 🚀 Modal: Auto-Update Holidays (ធ្វើបច្ចុប្បន្នភាពស្វ័យប្រវត្តិ) */}
+      {autoUpdateModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 backdrop-blur-xs p-4">
+          <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-2xl max-w-lg w-full space-y-4 animate-in zoom-in-95 duration-150">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div className="flex items-center gap-2">
+                <div className="w-9 h-9 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center font-bold">
+                  <Sparkles className="w-5 h-5 text-amber-500" />
+                </div>
+                <div>
+                  <h3 className="font-black text-slate-900 text-sm">
+                    ធ្វើបច្ចុប្បន្នភាពថ្ងៃឈប់សម្រាក & ប្រតិទិន MoEYS ស្វ័យប្រវត្តិ
+                  </h3>
+                  <p className="text-[11px] text-slate-500">
+                    Continuous Cambodia Holiday & Academic Calendar Auto-Sync Engine
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setAutoUpdateModalOpen(false)}
+                className="text-slate-400 hover:text-slate-600 text-xs font-bold p-1 rounded-lg"
+              >
+                ✕
+              </button>
+            </div>
+
+            <p className="text-xs text-slate-600 leading-relaxed bg-blue-50/60 p-3 rounded-xl border border-blue-100">
+              ប្រព័ន្ធនឹងគណនាថ្ងៃឈប់សម្រាកផ្លូវការរបស់កម្ពុជាទាំង ១១ ថ្ងៃ, ពិធីបុណ្យចន្ទគតិ (ចូលឆ្នាំខ្មែរ, វិសាខបូជា, ច្រត់ព្រះនង្គ័ល, ភ្ជុំបិណ្ឌ, អុំទូក) និងកាលវិភាគប្រឡង-វិស្សមកាល MoEYS ដោយស្វ័យប្រវត្តិ និងរក្សាទុកក្នុង Database។
+            </p>
+
+            {/* Action options */}
+            <div className="space-y-2.5 pt-1">
+              {/* Option 1: Current Year */}
+              <button
+                onClick={handleAutoUpdateThisYear}
+                disabled={isUpdatingHolidays}
+                className="w-full p-3.5 rounded-2xl border border-slate-200 hover:border-blue-400 hover:bg-blue-50/60 transition-all flex items-center justify-between gap-3 text-left group cursor-pointer"
+              >
+                <div>
+                  <div className="font-bold text-xs text-slate-900 group-hover:text-blue-700 flex items-center gap-1.5">
+                    <span>១. ធ្វើបច្ចុប្បន្នភាពស្វ័យប្រវត្តិ ឆ្នាំនេះ ({toKhmerNumber(today.getFullYear())})</span>
+                    <span className="px-1.5 py-0.2 bg-blue-100 text-blue-800 text-[9px] font-bold rounded">ឆ្នាំបច្ចុប្បន្ន</span>
+                  </div>
+                  <div className="text-[11px] text-slate-500 mt-0.5">
+                    បង្កើតទិន្នន័យបុណ្យជាតិ និងកាលវិភាគអប់រំសម្រាប់ឆ្នាំ {today.getFullYear()}
+                  </div>
+                </div>
+                <div className="w-8 h-8 rounded-xl bg-slate-100 group-hover:bg-blue-600 group-hover:text-white flex items-center justify-center shrink-0 transition-colors">
+                  <ChevronRight className="w-4 h-4" />
+                </div>
+              </button>
+
+              {/* Option 2: This Year and Next Years (Continuous) */}
+              <button
+                onClick={handleAutoUpdateThisAndNextYears}
+                disabled={isUpdatingHolidays}
+                className="w-full p-3.5 rounded-2xl border-2 border-indigo-500/40 bg-indigo-50/30 hover:bg-indigo-50 hover:border-indigo-600 transition-all flex items-center justify-between gap-3 text-left group cursor-pointer shadow-xs"
+              >
+                <div>
+                  <div className="font-black text-xs text-indigo-950 group-hover:text-indigo-700 flex items-center gap-1.5">
+                    <span>២. ធ្វើបច្ចុប្បន្នភាព ឆ្នាំនេះ និងបណ្តាឆ្នាំបន្ទាប់ (បន្តស្វ័យប្រវត្តិ)</span>
+                    <span className="px-1.5 py-0.2 bg-emerald-100 text-emerald-800 text-[9px] font-bold rounded">ណែនាំ</span>
+                  </div>
+                  <div className="text-[11px] text-indigo-700/80 mt-0.5">
+                    គណនា និងរក្សាទុកសម្រាប់ឆ្នាំ {today.getFullYear()} ដល់ {today.getFullYear() + 2} (មិនបាច់ព្រួយបារម្ភពេលឆ្លងឆ្នាំថ្មី)
+                  </div>
+                </div>
+                <div className="w-8 h-8 rounded-xl bg-indigo-600 text-white flex items-center justify-center shrink-0 shadow-xs">
+                  <Sparkles className="w-4 h-4 text-amber-300" />
+                </div>
+              </button>
+
+              {/* Option 3: Current Viewed Year (if different) */}
+              {currentYear !== today.getFullYear() && (
+                <button
+                  onClick={handleAutoUpdateCurrentViewYear}
+                  disabled={isUpdatingHolidays}
+                  className="w-full p-3.5 rounded-2xl border border-slate-200 hover:border-amber-400 hover:bg-amber-50/60 transition-all flex items-center justify-between gap-3 text-left group cursor-pointer"
+                >
+                  <div>
+                    <div className="font-bold text-xs text-slate-900 group-hover:text-amber-800 flex items-center gap-1.5">
+                      <span>៣. ធ្វើបច្ចុប្បន្នភាពឆ្នាំដែលកំពុងមើល ({toKhmerNumber(currentYear)})</span>
+                    </div>
+                    <div className="text-[11px] text-slate-500 mt-0.5">
+                      បង្កើតទិន្នន័យសម្រាប់ប្រតិទិនឆ្នាំ {toKhmerNumber(currentYear)} (ព.ស. {toKhmerNumber(getBuddhistYear(currentYear))})
+                    </div>
+                  </div>
+                  <div className="w-8 h-8 rounded-xl bg-slate-100 group-hover:bg-amber-600 group-hover:text-white flex items-center justify-center shrink-0 transition-colors">
+                    <ChevronRight className="w-4 h-4" />
+                  </div>
+                </button>
+              )}
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setAutoUpdateModalOpen(false)}
+                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition-colors cursor-pointer"
+              >
+                បិទ
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* 📝 Modal: Add / Edit Holiday */}
       {modalOpen && (
@@ -919,7 +1210,7 @@ export default function CalendarPage() {
               </button>
               <button
                 onClick={handleDeleteConfirm}
-                className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold rounded-xl transition-colors shadow-xs cursor-pointer font-bold"
+                className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold rounded-xl transition-colors shadow-xs cursor-pointer"
               >
                 យល់ព្រម លុប
               </button>
@@ -938,12 +1229,12 @@ export default function CalendarPage() {
               </div>
               <div>
                 <h3 className="font-black text-slate-900 text-sm">ស្តារថ្ងៃឈប់សម្រាកផ្លូវការ MoEYS</h3>
-                <p className="text-xs text-slate-500">បញ្ចូលទិន្នន័យបុណ្យជាតិ និងប្រតិទិនសិក្សា MoEYS ២០២៤-២០២៥</p>
+                <p className="text-xs text-slate-500">បញ្ចូលទិន្នន័យបុណ្យជាតិ និងប្រតិទិនសិក្សា MoEYS គ្រប់ឆ្នាំសិក្សា</p>
               </div>
             </div>
 
             <p className="text-xs text-slate-600 leading-relaxed bg-slate-50 p-3 rounded-xl border border-slate-200">
-              ដំណើរការនេះនឹងបញ្ចូលថ្ងៃឈប់សម្រាកផ្លូវការទាំងអស់របស់កម្ពុជា (ចូលឆ្នាំខ្មែរ, ភ្ជុំបិណ្ឌ, អុំទូក, ឯករាជ្យជាតិ, សម័យប្រឡងឆមាស និងវិស្សមកាល) ទៅកាន់ Database Supabase។
+              ដំណើរការនេះនឹងបញ្ចូល និងធ្វើបច្ចុប្បន្នភាពថ្ងៃឈប់សម្រាកផ្លូវការទាំងអស់របស់កម្ពុជា (ចូលឆ្នាំខ្មែរ, ភ្ជុំបិណ្ឌ, អុំទូក, ឯករាជ្យជាតិ, វិសាខបូជា, ច្រត់ព្រះនង្គ័ល, សម័យប្រឡងឆមាស និងវិស្សមកាល) សម្រាប់ឆ្នាំនេះ និងបណ្តាឆ្នាំបន្ទាប់ទៅកាន់ Database Supabase។
             </p>
 
             <div className="flex items-center justify-end gap-2.5 pt-2">
@@ -955,7 +1246,7 @@ export default function CalendarPage() {
               </button>
               <button
                 onClick={handleResetToMoEYS}
-                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl transition-colors shadow-xs cursor-pointer font-bold"
+                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl transition-colors shadow-xs cursor-pointer"
               >
                 យល់ព្រម ស្តារទិន្នន័យ
               </button>

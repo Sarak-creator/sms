@@ -3,8 +3,8 @@
   "version": "1.0.0",
   "description": "Cambodian Public High School Management System (MoEYS Standard) - ប្រព័ន្ធគ្រប់គ្រងវិទ្យាល័យរដ្ឋកម្ពុជា",
   "scripts": {
-    "dev": "next dev -p 3000",
-    "build": "next build",
+    "dev": "node -r ./patch-fs.cjs ./node_modules/next/dist/bin/next dev -p 3000",
+    "build": "node -r ./patch-fs.cjs ./node_modules/next/dist/bin/next build",
     "start": "next start -p 3000",
     "lint": "next lint",
     "postinstall": "prisma generate"
