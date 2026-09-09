@@ -507,9 +507,17 @@ export const translations = {
     km: 'ឪពុក',
     en: 'Father',
   },
+  fatherOccupationLabel: {
+    km: 'មុខរបរឪពុក',
+    en: "Father's Occupation",
+  },
   motherNameLabel: {
     km: 'ម្តាយ',
     en: 'Mother',
+  },
+  motherOccupationLabel: {
+    km: 'មុខរបរម្តាយ',
+    en: "Mother's Occupation",
   },
   phoneLabel: {
     km: 'ទូរស័ព្ទ',

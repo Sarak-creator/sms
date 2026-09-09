@@ -25,7 +25,9 @@ export interface StudentData {
   pobProvince: string;
   pobDistrict: string;
   fatherName: string;
+  fatherOccupation?: string;
   motherName: string;
+  motherOccupation?: string;
   guardianPhone: string;
   rollNumber: number;
   classId?: string;

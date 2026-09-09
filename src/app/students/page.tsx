@@ -101,7 +101,9 @@ const EMPTY_STUDENT_FORM: StudentData = {
   pobProvince: 'រាជធានីភ្នំពេញ',
   pobDistrict: 'ខណ្ឌដូនពេញ',
   fatherName: '',
+  fatherOccupation: '',
   motherName: '',
+  motherOccupation: '',
   guardianPhone: '',
   classId: 'c-11-sci-1',
 };
@@ -453,7 +455,9 @@ export default function StudentsPage() {
         'POB Province': s.pobProvince,
         'POB District': s.pobDistrict,
         'Father Name': s.fatherName,
+        'Father Occupation': s.fatherOccupation || '',
         'Mother Name': s.motherName,
+        'Mother Occupation': s.motherOccupation || '',
         'Guardian Phone': s.guardianPhone,
       };
     });
@@ -790,8 +794,13 @@ export default function StudentsPage() {
 
                     {/* Guardian Information */}
                     <td className="p-3 text-slate-600">
-                      <div className="text-[11px]">
+                      <div className="text-[11px] flex items-center gap-1.5 flex-wrap">
                         <strong>{s.fatherName || s.motherName || 'N/A'}</strong>
+                        {(s.fatherOccupation || s.motherOccupation) && (
+                          <span className="text-[10px] text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200">
+                            {s.fatherOccupation || s.motherOccupation}
+                          </span>
+                        )}
                       </div>
                       <div className="text-[10px] text-blue-600 font-mono flex items-center gap-1 mt-0.5">
                         <Phone className="w-2.5 h-2.5" />
@@ -1290,11 +1299,25 @@ export default function StudentsPage() {
               </div>
             </div>
 
-            <div className="p-3 bg-slate-50 rounded-xl border border-slate-100 text-xs space-y-1">
+            <div className="p-3 bg-slate-50 rounded-xl border border-slate-100 text-xs space-y-1.5">
               <span className="text-slate-400 block text-[10px] uppercase font-bold">{t('guardianInfoLabel')}</span>
-              <div className="text-slate-700">{t('fatherNameLabel')}: <strong>{selectedDossier.fatherName}</strong></div>
-              <div className="text-slate-700">{t('motherNameLabel')}: <strong>{selectedDossier.motherName}</strong></div>
-              <div className="text-blue-700 font-mono font-bold mt-1">{t('phoneLabel')}: {selectedDossier.guardianPhone}</div>
+              <div className="text-slate-700 flex items-center justify-between">
+                <span>{t('fatherNameLabel')}: <strong>{selectedDossier.fatherName || '-'}</strong></span>
+                {selectedDossier.fatherOccupation && (
+                  <span className="text-[11px] text-slate-500 bg-white px-2 py-0.5 rounded border border-slate-200 font-medium">
+                    {selectedDossier.fatherOccupation}
+                  </span>
+                )}
+              </div>
+              <div className="text-slate-700 flex items-center justify-between">
+                <span>{t('motherNameLabel')}: <strong>{selectedDossier.motherName || '-'}</strong></span>
+                {selectedDossier.motherOccupation && (
+                  <span className="text-[11px] text-slate-500 bg-white px-2 py-0.5 rounded border border-slate-200 font-medium">
+                    {selectedDossier.motherOccupation}
+                  </span>
+                )}
+              </div>
+              <div className="text-blue-700 font-mono font-bold pt-1 border-t border-slate-200/60">{t('phoneLabel')}: {selectedDossier.guardianPhone || '-'}</div>
             </div>
 
             <div className="pt-2 flex justify-between items-center gap-2">
@@ -1535,12 +1558,36 @@ export default function StudentsPage() {
                 </div>
 
                 <div>
+                  <label className="block text-slate-700 font-bold mb-1">{t('fatherOccupationLabel')}</label>
+                  <input
+                    type="text"
+                    placeholder={language === 'km' ? 'មុខរបរឪពុក (ឧ. មន្ត្រីរាជការ, អាជីវករ...)' : "Father's occupation"}
+                    value={formData.fatherOccupation || ''}
+                    onChange={(e) => setFormData({ ...formData, fatherOccupation: e.target.value })}
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
                   <label className="block text-slate-700 font-bold mb-1">{t('motherNameLabel')}</label>
                   <input
                     type="text"
                     placeholder={language === 'km' ? 'ឈ្មោះម្តាយ' : "Mother's name"}
                     value={formData.motherName}
                     onChange={(e) => setFormData({ ...formData, motherName: e.target.value })}
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-slate-700 font-bold mb-1">{t('motherOccupationLabel')}</label>
+                  <input
+                    type="text"
+                    placeholder={language === 'km' ? 'មុខរបរម្តាយ (ឧ. មេផ្ទះ, អាជីវករ...)' : "Mother's occupation"}
+                    value={formData.motherOccupation || ''}
+                    onChange={(e) => setFormData({ ...formData, motherOccupation: e.target.value })}
                     className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
                 </div>

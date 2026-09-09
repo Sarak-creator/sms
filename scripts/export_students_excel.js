@@ -21,7 +21,7 @@ function parseSeedStudents(content) {
   const students = [];
 
   // Match literal objects in the file
-  const literalPattern = /\{[\s\S]*?studentNationalId:\s*['"](.*?)['"][\s\S]*?khmerName:\s*['"](.*?)['"][\s\S]*?latinName:\s*['"](.*?)['"][\s\S]*?gender:\s*['"](.*?)['"][\s\S]*?dob:\s*new Date\(['"](.*?)['"]\)[\s\S]*?pobProvince:\s*['"](.*?)['"][\s\S]*?pobDistrict:\s*['"](.*?)['"][\s\S]*?fatherName:\s*['"](.*?)['"][\s\S]*?motherName:\s*['"](.*?)['"][\s\S]*?guardianPhone:\s*['"](.*?)['"][\s\S]*?rollNumber:\s*(\d+)[\s\S]*?classId:\s*['"](.*?)['"][\s\S]*?\}/g;
+  const literalPattern = /\{[\s\S]*?studentNationalId:\s*['"](.*?)['"][\s\S]*?khmerName:\s*['"](.*?)['"][\s\S]*?latinName:\s*['"](.*?)['"][\s\S]*?gender:\s*['"](.*?)['"][\s\S]*?dob:\s*new Date\(['"](.*?)['"]\)[\s\S]*?pobProvince:\s*['"](.*?)['"][\s\S]*?pobDistrict:\s*['"](.*?)['"][\s\S]*?fatherName:\s*['"](.*?)['"][\s\S]*?fatherOccupation:\s*['"](.*?)['"][\s\S]*?motherName:\s*['"](.*?)['"][\s\S]*?motherOccupation:\s*['"](.*?)['"][\s\S]*?guardianPhone:\s*['"](.*?)['"][\s\S]*?rollNumber:\s*(\d+)[\s\S]*?classId:\s*['"](.*?)['"][\s\S]*?\}/g;
 
   let match;
   while ((match = literalPattern.exec(content)) !== null) {
@@ -34,14 +34,19 @@ function parseSeedStudents(content) {
       pobProvince: match[6],
       pobDistrict: match[7],
       fatherName: match[8],
-      motherName: match[9],
-      guardianPhone: match[10],
-      rollNumber: parseInt(match[11], 10),
-      classId: match[12],
+      fatherOccupation: match[9],
+      motherName: match[10],
+      motherOccupation: match[11],
+      guardianPhone: match[12],
+      rollNumber: parseInt(match[13], 10),
+      classId: match[14],
     });
   }
 
   // Also parse programmatic Array.from sections for Grade 4, 6, 10, 12
+  const fatherOccupations = ['មន្ត្រីរាជការ', 'អាជីវករ', 'កសិករ', 'គ្រូបង្រៀន', 'បុគ្គលិកក្រុមហ៊ុន', 'វិស្វករ', 'ពាណិជ្ជករ', 'វេជ្ជបណ្ឌិត', 'អ្នកបើកបរ', 'មេការសំណង់'];
+  const motherOccupations = ['អាជីវករ', 'មេផ្ទះ', 'គ្រូបង្រៀន', 'មន្ត្រីរាជការ', 'បុគ្គលិកធនាគារ', 'កសិករ', 'គិលានុបដ្ឋាយិកា', 'សហគ្រិន', 'បុគ្គលិកក្រុមហ៊ុន', 'អ្នកកាត់ដេរ'];
+
   const arrayConfigs = [
     {
       grade: 'GRADE_4',
@@ -105,7 +110,9 @@ function parseSeedStudents(content) {
         pobProvince: province,
         pobDistrict: 'ស្រុក/ខណ្ឌគំរូ',
         fatherName: `ឪពុក ${khmerName}`,
+        fatherOccupation: fatherOccupations[i % fatherOccupations.length],
         motherName: `ម្តាយ ${khmerName}`,
+        motherOccupation: motherOccupations[i % motherOccupations.length],
         guardianPhone: `012 ${String(cfg.birthYear).slice(-2)}0 ${idStr}`,
         rollNumber: num,
         classId: cfg.classId,
@@ -137,7 +144,9 @@ function formatForExcel(studentList) {
       'រាជធានី/ខេត្តកំណើត (POB Province)': s.pobProvince,
       'ស្រុក/ខណ្ឌកំណើត (POB District)': s.pobDistrict,
       'ឈ្មោះឪពុក (Father Name)': s.fatherName,
+      'មុខរបរឪពុក (Father Occupation)': s.fatherOccupation || '',
       'ឈ្មោះម្តាយ (Mother Name)': s.motherName,
+      'មុខរបរម្តាយ (Mother Occupation)': s.motherOccupation || '',
       'លេខទូរស័ព្ទអាណាព្យាបាល (Guardian Phone)': s.guardianPhone,
       'ស្ថានភាព (Status)': 'កំពុងសិក្សា (Active)',
     };
@@ -163,8 +172,10 @@ const colWidths = [
   { wch: 14 }, // DOB
   { wch: 20 }, // Province
   { wch: 18 }, // District
-  { wch: 20 }, // Father
-  { wch: 20 }, // Mother
+  { wch: 20 }, // Father Name
+  { wch: 24 }, // Father Occupation
+  { wch: 20 }, // Mother Name
+  { wch: 24 }, // Mother Occupation
   { wch: 20 }, // Phone
   { wch: 20 }, // Status
 ];

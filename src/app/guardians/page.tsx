@@ -81,7 +81,9 @@ export default function GuardiansPage() {
   // Edit Guardian Modal State
   const [editStudent, setEditStudent] = useState<StudentData | null>(null);
   const [editFatherName, setEditFatherName] = useState('');
+  const [editFatherOccupation, setEditFatherOccupation] = useState('');
   const [editMotherName, setEditMotherName] = useState('');
+  const [editMotherOccupation, setEditMotherOccupation] = useState('');
   const [editPhone, setEditPhone] = useState('');
 
   // Toast State
@@ -104,8 +106,8 @@ export default function GuardiansPage() {
   const guardianList: GuardianRecord[] = React.useMemo(() => {
     const list: GuardianRecord[] = [];
     scopedStudents.forEach((s, idx) => {
-      const defaultOccFather = SAMPLE_OCCUPATIONS[idx % SAMPLE_OCCUPATIONS.length];
-      const defaultOccMother = SAMPLE_OCCUPATIONS[(idx + 3) % SAMPLE_OCCUPATIONS.length];
+      const defaultOccFather = s.fatherOccupation || SAMPLE_OCCUPATIONS[idx % SAMPLE_OCCUPATIONS.length];
+      const defaultOccMother = s.motherOccupation || SAMPLE_OCCUPATIONS[(idx + 3) % SAMPLE_OCCUPATIONS.length];
       const fullAddress = `${s.pobDistrict}, ${s.pobProvince}`;
       const studentClass = classes.find((c) => c.id === s.classId)?.name || 'មិនទាន់កំណត់';
 
@@ -173,7 +175,9 @@ export default function GuardiansPage() {
     if (stu) {
       setEditStudent(stu);
       setEditFatherName(stu.fatherName);
+      setEditFatherOccupation(stu.fatherOccupation || '');
       setEditMotherName(stu.motherName);
+      setEditMotherOccupation(stu.motherOccupation || '');
       setEditPhone(stu.guardianPhone);
     }
   };
@@ -184,7 +188,9 @@ export default function GuardiansPage() {
     if (editStudent) {
       updateStudent(editStudent.studentNationalId, {
         fatherName: editFatherName,
+        fatherOccupation: editFatherOccupation,
         motherName: editMotherName,
+        motherOccupation: editMotherOccupation,
         guardianPhone: editPhone,
       });
       showToast(
@@ -623,26 +629,50 @@ export default function GuardiansPage() {
             </div>
 
             <form onSubmit={handleSaveEdit} className="space-y-3.5 text-xs">
-              <div>
-                <label className="block text-slate-700 font-bold mb-1">{t('fatherNameLabel')}</label>
-                <input
-                  type="text"
-                  required
-                  value={editFatherName}
-                  onChange={(e) => setEditFatherName(e.target.value)}
-                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-slate-700 font-bold mb-1">{t('fatherNameLabel')}</label>
+                  <input
+                    type="text"
+                    required
+                    value={editFatherName}
+                    onChange={(e) => setEditFatherName(e.target.value)}
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-slate-700 font-bold mb-1">{t('fatherOccupationLabel')}</label>
+                  <input
+                    type="text"
+                    placeholder="ឧ. មន្ត្រីរាជការ, អាជីវករ..."
+                    value={editFatherOccupation}
+                    onChange={(e) => setEditFatherOccupation(e.target.value)}
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
               </div>
 
-              <div>
-                <label className="block text-slate-700 font-bold mb-1">{t('motherNameLabel')}</label>
-                <input
-                  type="text"
-                  required
-                  value={editMotherName}
-                  onChange={(e) => setEditMotherName(e.target.value)}
-                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-slate-700 font-bold mb-1">{t('motherNameLabel')}</label>
+                  <input
+                    type="text"
+                    required
+                    value={editMotherName}
+                    onChange={(e) => setEditMotherName(e.target.value)}
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-slate-700 font-bold mb-1">{t('motherOccupationLabel')}</label>
+                  <input
+                    type="text"
+                    placeholder="ឧ. មេផ្ទះ, អាជីវករ..."
+                    value={editMotherOccupation}
+                    onChange={(e) => setEditMotherOccupation(e.target.value)}
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
               </div>
 
               <div>
