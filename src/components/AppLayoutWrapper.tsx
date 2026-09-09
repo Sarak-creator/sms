@@ -40,7 +40,7 @@ export function AppLayoutWrapper({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <div className="flex w-full min-h-screen">
+    <div className="flex w-full min-h-screen bg-slate-50 dark:bg-[#0b0f19]">
       <Sidebar />
       <div className="flex-1 flex flex-col min-w-0">
         <Header />

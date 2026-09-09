@@ -16,7 +16,13 @@ import {
   Shield,
   LogOut,
   LogIn,
+  Palette,
+  Sun,
+  Moon,
+  Monitor,
+  Check,
 } from 'lucide-react';
+import { COLOR_PALETTES } from '@/lib/theme';
 
 export function Header() {
   const router = useRouter();
@@ -31,17 +37,26 @@ export function Header() {
     currentUser,
     logout,
     canAccessRoute,
+    themeMode,
+    setThemeMode,
+    colorPalette,
+    setColorPalette,
   } = useSchool();
 
   const currentClass = classes.find((c) => c.id === selectedClassId) || classes[0];
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
+  const [isThemeMenuOpen, setIsThemeMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
+  const themeMenuRef = useRef<HTMLDivElement>(null);
 
-  // Close dropdown on outside click
+  // Close dropdowns on outside click
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
       if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
         setIsUserMenuOpen(false);
+      }
+      if (themeMenuRef.current && !themeMenuRef.current.contains(event.target as Node)) {
+        setIsThemeMenuOpen(false);
       }
     }
     document.addEventListener('mousedown', handleClickOutside);
@@ -148,6 +163,132 @@ export function Header() {
             <span className="text-sm leading-none">🇬🇧</span>
             <span className="hidden sm:inline">ENG</span>
           </button>
+        </div>
+
+        {/* Quick Theme & Color Palette Selector */}
+        <div className="relative" ref={themeMenuRef}>
+          <button
+            type="button"
+            onClick={() => setIsThemeMenuOpen((prev) => !prev)}
+            className="flex items-center gap-1.5 p-1.5 sm:px-2.5 sm:py-1.5 bg-slate-100 hover:bg-slate-200/80 rounded-xl border border-slate-200 text-slate-700 transition-colors cursor-pointer text-xs font-bold"
+            title={language === 'km' ? 'ប្តូរពណ៌ និងរចនាបថ' : 'Customize Theme & Colors'}
+          >
+            <Palette className="w-4 h-4 text-blue-600 shrink-0" />
+            <span className="hidden lg:inline text-[11px]">
+              {language === 'km' ? 'ពណ៌ & រចនាបថ' : 'Theme'}
+            </span>
+            <div
+              className="w-2.5 h-2.5 rounded-full border border-white shadow-xs shrink-0"
+              style={{
+                backgroundColor:
+                  COLOR_PALETTES.find((p) => p.id === colorPalette)?.primaryColor || '#2563eb',
+              }}
+            />
+          </button>
+
+          {isThemeMenuOpen && (
+            <div className="absolute right-0 mt-2 w-72 sm:w-80 bg-white rounded-2xl shadow-2xl border border-slate-200 p-3.5 z-50 animate-in fade-in slide-in-from-top-2 space-y-3.5">
+              {/* Theme Mode Segmented Controller */}
+              <div>
+                <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1.5 flex items-center justify-between">
+                  <span>{t('themeModeLabel')}</span>
+                  <span className="text-[9px] text-blue-600 font-semibold lowercase">
+                    {themeMode}
+                  </span>
+                </div>
+                <div className="grid grid-cols-3 gap-1 bg-slate-100 p-1 rounded-xl text-xs font-bold border border-slate-200">
+                  <button
+                    type="button"
+                    onClick={() => setThemeMode('light')}
+                    className={`py-1.5 px-2 rounded-lg flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                      themeMode === 'light'
+                        ? 'bg-white text-blue-700 shadow-xs ring-1 ring-slate-200'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    <Sun className="w-3.5 h-3.5 text-amber-500" />
+                    <span>{t('themeLight').split(' ')[0]}</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setThemeMode('dark')}
+                    className={`py-1.5 px-2 rounded-lg flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                      themeMode === 'dark'
+                        ? 'bg-white text-blue-700 shadow-xs ring-1 ring-slate-200'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    <Moon className="w-3.5 h-3.5 text-indigo-500" />
+                    <span>{t('themeDark').split(' ')[0]}</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setThemeMode('system')}
+                    className={`py-1.5 px-2 rounded-lg flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                      themeMode === 'system'
+                        ? 'bg-white text-blue-700 shadow-xs ring-1 ring-slate-200'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    <Monitor className="w-3.5 h-3.5 text-slate-500" />
+                    <span>{language === 'km' ? 'ស្វ័យប្រវត្ត' : 'System'}</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Color Palettes List */}
+              <div>
+                <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1.5">
+                  {t('colorPaletteLabel')}
+                </div>
+                <div className="grid grid-cols-2 gap-1.5">
+                  {COLOR_PALETTES.map((p) => {
+                    const isSelected = colorPalette === p.id;
+                    return (
+                      <button
+                        key={p.id}
+                        type="button"
+                        onClick={() => setColorPalette(p.id)}
+                        className={`flex items-center gap-2 p-2 rounded-xl text-left transition-all border cursor-pointer ${
+                          isSelected
+                            ? 'bg-blue-50/70 border-blue-300 ring-2 ring-blue-500/20 shadow-xs'
+                            : 'bg-slate-50 hover:bg-slate-100 border-slate-200/80 text-slate-700'
+                        }`}
+                      >
+                        <div
+                          className="w-4 h-4 rounded-full shrink-0 flex items-center justify-center shadow-xs border border-white"
+                          style={{ backgroundColor: p.primaryColor }}
+                        >
+                          {isSelected && <Check className="w-2.5 h-2.5 text-white stroke-[3]" />}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div
+                            className={`text-[11px] font-bold truncate leading-tight ${
+                              isSelected ? 'text-blue-950' : 'text-slate-800'
+                            }`}
+                          >
+                            {language === 'km' ? p.nameKhmer.split('(')[0] : p.nameEnglish.split('&')[0]}
+                          </div>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Link to full settings */}
+              <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-[11px]">
+                <Link
+                  href="/settings"
+                  onClick={() => setIsThemeMenuOpen(false)}
+                  className="text-blue-600 hover:text-blue-800 font-bold transition-colors"
+                >
+                  {language === 'km' ? '⚙️ ការកំណត់កម្រិតខ្ពស់' : '⚙️ Advanced Settings'}
+                </Link>
+                <span className="text-[10px] text-slate-400 font-mono">v1.0 MoEYS</span>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* User Card & Role Switcher Dropdown */}

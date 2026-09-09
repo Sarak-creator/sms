@@ -22,6 +22,11 @@ export default function RootLayout({
           href="https://fonts.googleapis.com/css2?family=Battambang:wght@400;700;900&family=Kantumruy+Pro:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap"
           rel="stylesheet"
         />
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(function(){try{var m=localStorage.getItem('moeys_theme_mode');var p=localStorage.getItem('moeys_color_palette');if(p){document.documentElement.setAttribute('data-palette',p);}if(m==='dark'||(m==='system'&&window.matchMedia('(prefers-color-scheme: dark)').matches)){document.documentElement.classList.add('dark');}}catch(e){}})();`,
+          }}
+        />
       </head>
       <body className="antialiased min-h-screen bg-slate-50 font-khmer text-slate-800">
         <SchoolProvider>

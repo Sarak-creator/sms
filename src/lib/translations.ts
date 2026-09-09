@@ -645,6 +645,46 @@ export const translations = {
     km: 'កំណត់ទៅដើមវិញ',
     en: 'Reset to Defaults',
   },
+  themeModeLabel: {
+    km: 'រូបរាងផ្ទៃកម្មវិធី (Theme Mode)',
+    en: 'Theme Mode',
+  },
+  themeLight: {
+    km: 'ពន្លឺ (Light Mode)',
+    en: 'Light Mode',
+  },
+  themeDark: {
+    km: 'ងងឹត (Dark Mode)',
+    en: 'Dark Mode',
+  },
+  themeSystem: {
+    km: 'តាមឧបករណ៍ (Auto / System)',
+    en: 'System Default',
+  },
+  colorPaletteLabel: {
+    km: 'ក្ដារពណ៌ចម្បងនៃប្រព័ន្ធ (System Color Palette)',
+    en: 'System Color Palette',
+  },
+  colorPaletteSubtitle: {
+    km: 'ជ្រើសរើសកម្រងពណ៌ចម្បងដែលត្រូវប្រើប្រាស់លើប៊ូតុង ផ្លាកសញ្ញា ផ្ទាំងគ្រប់គ្រង និងម៉ឺនុយ',
+    en: 'Choose the primary color scheme applied across buttons, badges, dashboard, and menus',
+  },
+  themeCustomizerTitle: {
+    km: 'ការកំណត់រចនាបថ និងក្ដារពណ៌',
+    en: 'Theme & Appearance Settings',
+  },
+  previewControls: {
+    km: 'ការបង្ហាញសាកល្បងភ្លាមៗ',
+    en: 'Live Component Preview',
+  },
+  sampleButton: {
+    km: 'ប៊ូតុងសកម្មភាព',
+    en: 'Action Button',
+  },
+  sampleBadge: {
+    km: 'ផ្លាកកិត្តិយស',
+    en: 'Official Badge',
+  },
 
   // Student Classroom Allocation, Transfer & Promotion
   transferClass: {

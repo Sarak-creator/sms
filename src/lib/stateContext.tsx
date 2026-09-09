@@ -32,6 +32,13 @@ import {
 } from './gradingEngine';
 import { translations, Language, TranslationKey } from './translations';
 import {
+  ThemeMode,
+  ColorPaletteId,
+  COLOR_PALETTES,
+  applyTheme,
+  getStoredTheme,
+} from './theme';
+import {
   AcademicMonthDef,
   MONTHLY_ACADEMIC_MONTHS,
   MonthlySubjectGroupDef,
@@ -227,6 +234,12 @@ interface SchoolContextType {
   setLanguage: (lang: Language) => void;
   t: (key: TranslationKey) => string;
 
+  // Theme & Palette Customization
+  themeMode: ThemeMode;
+  setThemeMode: (mode: ThemeMode) => void;
+  colorPalette: ColorPaletteId;
+  setColorPalette: (palette: ColorPaletteId) => void;
+
   // Responsive Sidebar Drawer
   isSidebarOpen: boolean;
   setIsSidebarOpen: (open: boolean) => void;
@@ -264,6 +277,8 @@ const SchoolContext = createContext<SchoolContextType | null>(null);
 
 export function SchoolProvider({ children }: { children: React.ReactNode }) {
   const [language, setLanguageState] = useState<Language>('km');
+  const [themeMode, setThemeModeState] = useState<ThemeMode>('light');
+  const [colorPalette, setColorPaletteState] = useState<ColorPaletteId>('moeys-blue');
   const [isSidebarOpen, setIsSidebarOpen] = useState<boolean>(false);
   const [selectedClassId, setSelectedClassId] = useState<string>('');
   const [selectedMonth, setSelectedMonth] = useState<number>(1);
@@ -276,8 +291,22 @@ export function SchoolProvider({ children }: { children: React.ReactNode }) {
       if (saved === 'km' || saved === 'en') {
         setLanguageState(saved);
       }
+      const storedTheme = getStoredTheme();
+      setThemeModeState(storedTheme.mode);
+      setColorPaletteState(storedTheme.palette);
+      applyTheme(storedTheme.mode, storedTheme.palette);
     }
   }, []);
+
+  const setThemeMode = (mode: ThemeMode) => {
+    setThemeModeState(mode);
+    applyTheme(mode, colorPalette);
+  };
+
+  const setColorPalette = (palette: ColorPaletteId) => {
+    setColorPaletteState(palette);
+    applyTheme(themeMode, palette);
+  };
 
   const setLanguage = (lang: Language) => {
     setLanguageState(lang);
@@ -1649,6 +1678,10 @@ export function SchoolProvider({ children }: { children: React.ReactNode }) {
         language,
         setLanguage,
         t,
+        themeMode,
+        setThemeMode,
+        colorPalette,
+        setColorPalette,
         isSidebarOpen,
         setIsSidebarOpen,
         toggleSidebar,
