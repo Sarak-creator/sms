@@ -128,6 +128,10 @@ interface SchoolContextType {
   setSelectedSubjectCode: (code: string) => void;
   students: StudentData[];
   addStudent: (student: StudentData) => void;
+  bulkAddOrUpdateStudents: (
+    newStudents: StudentData[],
+    overwriteExisting?: boolean
+  ) => { added: number; updated: number };
   updateStudent: (studentNationalId: string, updated: Partial<StudentData>) => void;
   deleteStudent: (studentNationalId: string) => void;
   transferStudents: (studentIds: string[], targetClassId: string) => void;
@@ -1329,6 +1333,46 @@ export function SchoolProvider({ children }: { children: React.ReactNode }) {
     syncStudentToSupabase(newStudent);
   };
 
+  // Bulk Add or Update Students (from Excel import or external files)
+  const bulkAddOrUpdateStudents = (
+    newStudents: StudentData[],
+    overwriteExisting = true
+  ): { added: number; updated: number } => {
+    let added = 0;
+    let updated = 0;
+
+    setStudents((prev) => {
+      const existingMap = new Map<string, StudentData>();
+      prev.forEach((s) => existingMap.set(s.studentNationalId, s));
+
+      newStudents.forEach((ns) => {
+        if (existingMap.has(ns.studentNationalId)) {
+          if (overwriteExisting) {
+            existingMap.set(ns.studentNationalId, {
+              ...existingMap.get(ns.studentNationalId)!,
+              ...ns,
+            });
+            updated++;
+          }
+        } else {
+          existingMap.set(ns.studentNationalId, ns);
+          added++;
+        }
+      });
+
+      const next = Array.from(existingMap.values());
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('moeys_sms_students', JSON.stringify(next));
+      }
+      return next;
+    });
+
+    // Sync imported students to Supabase
+    newStudents.forEach((s) => syncStudentToSupabase(s));
+
+    return { added, updated };
+  };
+
   const updateStudent = (studentNationalId: string, updated: Partial<StudentData>) => {
     setStudents((prev) =>
       prev.map((s) => {
@@ -1604,6 +1648,7 @@ export function SchoolProvider({ children }: { children: React.ReactNode }) {
         setSelectedSubjectCode,
         students,
         addStudent,
+        bulkAddOrUpdateStudents,
         updateStudent,
         deleteStudent,
         transferStudents,

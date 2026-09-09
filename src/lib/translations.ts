@@ -235,6 +235,50 @@ export const translations = {
     km: 'ទាញយក Excel',
     en: 'Export Excel (.xlsx)',
   },
+  importExcel: {
+    km: 'នាំចូល Excel',
+    en: 'Import Excel (.xlsx)',
+  },
+  importExcelTitle: {
+    km: 'នាំចូលបញ្ជីឈ្មោះសិស្សពីឯកសារ Excel',
+    en: 'Import Students from Excel File',
+  },
+  importExcelDesc: {
+    km: 'ជ្រើសរើស ឬទម្លាក់ឯកសារ .xlsx / .xls ដើម្បីនាំចូលទិន្នន័យសិស្សជាក្រុមដោយស្វ័យប្រវត្តិ',
+    en: 'Upload or drag & drop .xlsx / .xls file to batch import student records',
+  },
+  downloadTemplate: {
+    km: 'ទាញយកឯកសារគំរូ',
+    en: 'Download Template',
+  },
+  importPreviewTitle: {
+    km: 'ផ្ទៀងផ្ទាត់ទិន្នន័យមុនពេលនាំចូល',
+    en: 'Preview Data Before Import',
+  },
+  importOptions: {
+    km: 'ជម្រើសនៃការនាំចូល',
+    en: 'Import Options',
+  },
+  updateExisting: {
+    km: 'ធ្វើបច្ចុប្បន្នភាពសិស្សដែលមានស្រាប់ (Update duplicates)',
+    en: 'Update existing students',
+  },
+  skipExisting: {
+    km: 'រំលងសិស្សដែលមានស្រាប់ (Skip duplicates)',
+    en: 'Skip duplicate National IDs',
+  },
+  targetClassOption: {
+    km: 'ថ្នាក់រៀនគោលដៅ',
+    en: 'Target Classroom',
+  },
+  useExcelClass: {
+    km: 'ប្រើថ្នាក់តាមឯកសារ Excel',
+    en: 'Use classroom from Excel file',
+  },
+  importSuccess: {
+    km: 'បាននាំចូលទិន្នន័យសិស្សដោយជោគជ័យ!',
+    en: 'Students imported successfully!',
+  },
   searchPlaceholder: {
     km: 'ស្វែងរកតាមឈ្មោះ ឬអត្តលេខ...',
     en: 'Search (Name or National ID)...',

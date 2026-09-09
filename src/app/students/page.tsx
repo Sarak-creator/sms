@@ -7,6 +7,7 @@ import {
   Users,
   Search,
   Download,
+  Upload,
   Eye,
   Plus,
   Pencil,
@@ -32,6 +33,7 @@ import {
   ShieldAlert,
   ShieldCheck,
 } from 'lucide-react';
+import ImportStudentsModal from '@/components/ImportStudentsModal';
 
 const CAMBODIA_PROVINCES = [
   'រាជធានីភ្នំពេញ',
@@ -174,6 +176,9 @@ export default function StudentsPage() {
   // Delete Confirmation State
   const [deleteTarget, setDeleteTarget] = useState<StudentData | null>(null);
   const [isBulkDeleteModalOpen, setIsBulkDeleteModalOpen] = useState(false);
+
+  // Import Excel Modal State
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
 
   // Toast Notification State
   const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -527,6 +532,16 @@ export default function StudentsPage() {
           >
             <GraduationCap className="w-4 h-4" />
             <span>{language === 'km' ? 'ឡើងថ្នាក់ / បន្តការសិក្សា' : 'Promote Grade'}</span>
+          </button>
+
+          {/* Import Excel */}
+          <button
+            onClick={() => setIsImportModalOpen(true)}
+            className="inline-flex items-center gap-1.5 px-3.5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl transition-all shadow-md shadow-emerald-600/20 cursor-pointer"
+            title={language === 'km' ? 'នាំចូលទិន្នន័យពី Excel' : 'Import Students from Excel'}
+          >
+            <Upload className="w-3.5 h-3.5" />
+            <span>{t('importExcel')}</span>
           </button>
 
           {/* Export Excel */}
@@ -1719,6 +1734,20 @@ export default function StudentsPage() {
           </div>
         </div>
       )}
+
+      {/* Import Students Excel Modal */}
+      <ImportStudentsModal
+        isOpen={isImportModalOpen}
+        onClose={() => setIsImportModalOpen(false)}
+        defaultClassId={classFilter !== 'ALL' && classFilter !== 'UNASSIGNED' && classFilter !== 'GRADUATED' ? classFilter : selectedClassId}
+        onSuccess={(added, updated) => {
+          showToast(
+            language === 'km'
+              ? `បាននាំចូលសិស្សថ្មី ${added} នាក់ និងកែប្រែ ${updated} នាក់ដោយជោគជ័យ!`
+              : `Successfully imported ${added} new students and updated ${updated} existing!`
+          );
+        }}
+      />
     </div>
   );
 }

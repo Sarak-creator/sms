@@ -8,6 +8,7 @@
     "start": "next start -p 3000",
     "lint": "next lint",
     "export:students": "node scripts/export_students_excel.js",
+    "import:students": "node scripts/import_students_excel.js",
     "postinstall": "prisma generate"
   },
   "dependencies": {
